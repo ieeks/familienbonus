@@ -42,7 +42,7 @@
     padding:1px 6px; line-height:1.4}
   .sec-title{font-family:"IBM Plex Serif",serif; font-size:17px; font-weight:600}
 
-  label{display:block; font-size:12.5px; font-weight:500; color:var(--muted); margin-bottom:5px}
+  label,.grp-label{display:block; font-size:12.5px; font-weight:500; color:var(--muted); margin-bottom:5px}
   .hint{font-size:11.5px; color:var(--muted); margin-top:5px; line-height:1.45}
   input[type=text],input[type=number],select{
     width:100%; font-family:"IBM Plex Mono",monospace; font-size:15px; color:var(--ink);
@@ -71,6 +71,7 @@
   .child-row:last-of-type{border-bottom:none; margin-bottom:6px}
   .del{font-family:"IBM Plex Mono",monospace; background:var(--paper); border:1px solid var(--line-strong);
     color:var(--waste); border-radius:8px; padding:9px 11px; cursor:pointer; font-size:14px; height:40px}
+  .del[disabled]{opacity:.35; cursor:not-allowed}
   .add{font-family:"IBM Plex Sans",sans-serif; font-size:13px; font-weight:500; color:var(--primary);
     background:var(--primary-soft); border:1px solid transparent; border-radius:8px;
     padding:8px 12px; cursor:pointer}
@@ -88,6 +89,7 @@
   .flag{position:absolute; top:-9px; right:12px; background:var(--amber); color:#fff;
     font-family:"IBM Plex Mono",monospace; font-size:10px; letter-spacing:.08em; font-weight:600;
     text-transform:uppercase; padding:2px 8px; border-radius:5px}
+  .flag.alt{background:var(--line-strong); color:var(--muted)}
   .sc-top{display:flex; justify-content:space-between; align-items:baseline; gap:10px; margin-bottom:9px}
   .sc-name{font-size:13.5px; font-weight:600}
   .sc-split{font-family:"IBM Plex Mono",monospace; font-size:12px; color:var(--muted)}
@@ -99,6 +101,16 @@
     color:var(--ink); margin-top:1px}
   .fig.used b{color:var(--primary-ink)}
   .fig.waste b{color:var(--waste)}
+
+  /* Zuteilung je Kind – das, was man tatsächlich ins Formular einträgt */
+  .perchild{margin-top:11px; padding-top:9px; border-top:1px dashed var(--line)}
+  .pc-head{font-family:"IBM Plex Mono",monospace; font-size:10px; letter-spacing:.08em;
+    text-transform:uppercase; color:var(--muted); margin-bottom:6px}
+  .pc-row{display:grid; grid-template-columns:1fr auto auto; gap:12px; align-items:baseline; padding:2px 0}
+  .pc-name{font-size:12px; font-weight:500; color:var(--ink);
+    overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+  .pc-share{font-size:11px; color:var(--muted)}
+  .pc-eur{font-size:12px; color:var(--ink); min-width:11ch; text-align:right}
 
   .note{font-size:12px; color:var(--muted); line-height:1.5; margin-top:14px;
     padding-top:13px; border-top:1px solid var(--line)}
@@ -116,7 +128,7 @@
 </head>
 <body>
 <header>
-  <div class="eyebrow">§ 33 EStG · Kalenderjahr 2025</div>
+  <div class="eyebrow" id="eyebrow">§ 33 EStG · Kalenderjahr 2025</div>
   <h1>Familienbonus Plus – wie teilt ihr am besten auf?</h1>
   <p class="lede">Der Bonus senkt nur die Tarifsteuer auf die laufenden Bezüge – höchstens auf null.
   Was ein Elternteil nicht an Steuer hat, verpufft. Der Rechner verteilt so, dass möglichst viel ankommt.</p>
@@ -146,10 +158,19 @@
       </div>
     </div>
   </div>
-  <label style="margin-top:4px">Eingabe je Elternteil</label>
-  <div class="seg" id="inputMode">
-    <button data-mode="income" aria-pressed="true">Jahreseinkommen → ich rechne die Steuer</button>
-    <button data-mode="tax" aria-pressed="false">Tarifsteuer direkt eingeben</button>
+  <div class="grp-label" style="margin-top:4px">Steuerjahr</div>
+  <div class="seg" id="taxYear" role="group" aria-label="Steuerjahr">
+    <button type="button" data-year="2024" aria-pressed="false">2024</button>
+    <button type="button" data-year="2025" aria-pressed="true">2025</button>
+    <button type="button" data-year="2026" aria-pressed="false">2026</button>
+  </div>
+  <p class="hint">Das Jahr, für das veranlagt wird – nicht das Jahr der Abgabe. Die Arbeitnehmer­veranlagung,
+  die du heute einreichst, betrifft in der Regel das <b>Vorjahr</b>.</p>
+
+  <div class="grp-label" style="margin-top:12px">Eingabe je Elternteil</div>
+  <div class="seg" id="inputMode" role="group" aria-label="Eingabe je Elternteil">
+    <button type="button" data-mode="income" aria-pressed="true">Jahreseinkommen → ich rechne die Steuer</button>
+    <button type="button" data-mode="tax" aria-pressed="false">Tarifsteuer direkt eingeben</button>
   </div>
   <p class="hint" id="modeHint">Am L16 ≈ <b>KZ 245</b> (steuerpflichtige laufende Bezüge, ohne 13./14.).
   Ich rechne daraus die Tarifsteuer nach den Stufen 2025.</p>
@@ -158,14 +179,14 @@
 <section>
   <div class="sec-head"><span class="sec-num">02</span><span class="sec-title">Die Kinder</span></div>
   <div id="children"></div>
-  <button class="add" id="addChild">+ Kind hinzufügen</button>
+  <button type="button" class="add" id="addChild">+ Kind hinzufügen</button>
 </section>
 
 <section>
   <div class="sec-head"><span class="sec-num">03</span><span class="sec-title">Aufteilungsregel</span></div>
-  <div class="seg" id="splitMode">
-    <button data-split="free" aria-pressed="true">Freie Wahl (2025/2026)</button>
-    <button data-split="restricted" aria-pressed="false">Pflicht 25:75 / 50:50 (ab 2027)</button>
+  <div class="seg" id="splitMode" role="group" aria-label="Aufteilungsregel">
+    <button type="button" data-split="free" aria-pressed="true">Freie Wahl (bis 2026)</button>
+    <button type="button" data-split="restricted" aria-pressed="false">Pflicht 25:75 / 50:50 (ab 2027)</button>
   </div>
   <p class="hint">Ab 2027 fällt die freie 100/0-Wahl weg, sobald <b>alle</b> Kinder im Haushalt ≥ 4 Jahre sind –
   dann nur noch 25:75 oder 50:50. Solange ein Kind unter 4 im Haushalt lebt, bleibt die freie Wahl bestehen;
@@ -180,7 +201,7 @@
 </section>
 
 <footer>
-  Vereinfachte Modellrechnung nach § 33 EStG, Tarif 2025 · keine Steuerberatung.<br>
+  Vereinfachte Modellrechnung nach § 33 EStG, <span id="footYear">Tarif 2025</span> · keine Steuerberatung.<br>
   Sonderzahlungen (13./14.) und Verkehrsabsetzbetrag wirken separat und sind hier bewusst ausgeklammert.
 </footer>
 
@@ -188,26 +209,39 @@
 (function(){
   "use strict";
   const FB_U18 = 2000, FB_O18 = 700;
+  const EPS = 0.5;            // Cent-Rauschen; Beträge sind auf Euro gerundet
   let inputMode = "income";   // income | tax
   let splitMode = "free";     // free | restricted
   let children = [
     {label:"Kind 1", amount:FB_U18},
     {label:"Kind 2", amount:FB_U18},
   ];
+  // Fortlaufend, nicht children.length: sonst kollidiert der Name nach dem Löschen
+  // eines Kindes mit einem bestehenden – und die Aufstellung je Kind wird mehrdeutig.
+  let childSeq = children.length;
 
-  // --- 2025 Tarif (BMF) ---
-  const BRACKETS = [
-    [13308, 0.00],[21617,0.20],[35836,0.30],[69166,0.40],
-    [103072,0.48],[1000000,0.50],[Infinity,0.55]
-  ];
-  function tarifsteuer(einkommen){
+  // --- Tarifstufen je Jahr (BMF) – ein Array pro Jahr, nie überschreiben ---
+  const BRACKETS_BY_YEAR = {
+    2024: [[12816,0.00],[20818,0.20],[34513,0.30],[66612,0.40],
+           [ 99266,0.48],[1000000,0.50],[Infinity,0.55]],
+    2025: [[13308,0.00],[21617,0.20],[35836,0.30],[69166,0.40],
+           [103072,0.48],[1000000,0.50],[Infinity,0.55]],
+    2026: [[13539,0.00],[21992,0.20],[36458,0.30],[70365,0.40],
+           [104859,0.48],[1000000,0.50],[Infinity,0.55]]
+  };
+  let taxYear = 2025;   // Jahr der Veranlagung, nicht das Kalenderjahr
+
+  function tarifsteuer(einkommen, year){
+    const brackets = BRACKETS_BY_YEAR[year || taxYear];
     let tax=0, prev=0, e=Math.max(0,einkommen||0);
-    for(const [limit,rate] of BRACKETS){
+    for(const [limit,rate] of brackets){
       if(e>prev){ tax += (Math.min(e,limit)-prev)*rate; prev=limit; } else break;
     }
     return tax;
   }
   const eur = n => (Math.round(n)).toLocaleString("de-AT") + " €";
+  const ESC = {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"};
+  const esc = s => String(s).replace(/[&<>"']/g, c => ESC[c]);
 
   // --- DOM refs ---
   const $ = id => document.getElementById(id);
@@ -221,7 +255,7 @@
       row.innerHTML = `
         <div>
           <label>Bezeichnung</label>
-          <input type="text" data-i="${i}" data-k="label" value="${c.label.replace(/"/g,'&quot;')}">
+          <input type="text" data-i="${i}" data-k="label" value="${esc(c.label)}">
         </div>
         <div>
           <label>Bonus / Jahr</label>
@@ -230,7 +264,8 @@
             <option value="700" ${c.amount===FB_O18?"selected":""}>700 € (über 18, m. Beihilfe)</option>
           </select>
         </div>
-        <button class="del" data-del="${i}" title="entfernen">✕</button>`;
+        <button type="button" class="del" data-del="${i}" title="entfernen"
+          aria-label="${esc(c.label)} entfernen" ${children.length<=1?"disabled":""}>✕</button>`;
       childBox.appendChild(row);
     });
     childBox.querySelectorAll("input,select").forEach(el=>{
@@ -269,8 +304,9 @@
       if(i===n){
         const r=evaluate(cur,amounts,cA,cB);
         const bal = Math.abs(r.aSum-r.bSum); // tie-break: more even
-        if(!best || r.used>best.used+0.5 ||
-           (Math.abs(r.used-best.used)<0.5 && bal<best._bal)){ best=r; best._bal=bal; }
+        const better = !best || r.used > best.used + EPS;
+        const tie = best && Math.abs(r.used-best.used) <= EPS && bal < best._bal;
+        if(better || tie){ best=r; best._bal=bal; }
         return;
       }
       for(const f of opts){ cur[i]=f; rec(i+1); }
@@ -282,11 +318,28 @@
     return `<div class="bar"><i style="width:${pct}%"></i></div>`;
   }
   function splitText(fractions, amounts, nA, nB){
-    // aggregate share to A across children -> show as A:B percent of total
-    let aSum=0,total=0;
-    amounts.forEach((amt,i)=>{aSum+=amt*fractions[i];total+=amt;});
-    const pA = total? Math.round(aSum/total*100):0;
-    return `${nA} ${pA}% · ${nB} ${100-pA}%`;
+    // Ein Prozentsatz ist nur dann eine ehrliche Zusammenfassung, wenn alle Kinder
+    // gleich aufgeteilt sind. Sonst wäre der Mittelwert selbst kein zulässiges
+    // Verhältnis – dann verweisen wir auf die Aufstellung je Kind.
+    const uniform = fractions.every(f => f === fractions[0]);
+    if(!uniform) return "gemischt – siehe je Kind";
+    const pA = Math.round(fractions[0]*100);
+    return `${esc(nA)} ${pA}% · ${esc(nB)} ${100-pA}%`;
+  }
+
+  // Das eigentliche Ergebnis: was pro Kind bei wem einzutragen ist.
+  function perChildTable(r, nA, nB){
+    if(children.length < 2) return "";
+    const rows = children.map((c,i)=>{
+      const f = r.fractions[i], a = c.amount*f, b = c.amount-a;
+      return `<div class="pc-row">
+        <span class="pc-name">${esc(c.label)}</span>
+        <span class="pc-share num">${Math.round(f*100)} % / ${Math.round((1-f)*100)} %</span>
+        <span class="pc-eur num">${eur(a)} / ${eur(b)}</span>
+      </div>`;
+    }).join("");
+    return `<div class="perchild">
+      <div class="pc-head">je Kind · ${esc(nA)} / ${esc(nB)}</div>${rows}</div>`;
   }
 
   function compute(){
@@ -298,9 +351,9 @@
     // ceilings display
     $("ceilings").innerHTML = [[nA,cA,$("valA").value],[nB,cB,$("valB").value]].map(([nm,c,raw])=>`
       <div class="ceil">
-        <div class="who">${nm}</div>
+        <div class="who">${esc(nm)}</div>
         <div class="big num">${eur(c)}</div>
-        <div class="cap">${inputMode==="tax"?"eingegebene Tarifsteuer":"Tarifsteuer 2025 aus "+(raw?eur(+raw):"–")}<br>= max. nutzbarer Bonus</div>
+        <div class="cap">${inputMode==="tax"?"eingegebene Tarifsteuer":"Tarifsteuer "+taxYear+" aus "+(raw?eur(+raw):"–")}<br>= max. nutzbarer Bonus</div>
       </div>`).join("");
 
     // canonical scenarios
@@ -311,44 +364,67 @@
 
     // is best meaningfully better than a simple 50/50?
     const canon = [
-      {name:`Alles auf ${nA}`, r:allA, key:"allA"},
-      {name:`Alles auf ${nB}`, r:allB, key:"allB"},
+      {name:`Alles auf ${esc(nA)}`, r:allA, key:"allA"},
+      {name:`Alles auf ${esc(nB)}`, r:allB, key:"allB"},
       {name:"Halbe-halbe (50/50)", r:half, key:"half"},
     ];
     if(splitMode==="restricted"){ canon.shift(); canon.shift(); } // 100/0 not allowed -> drop pure ones
-    // identify which canonical (if any) equals best.used; else show best separately
+
+    // Genau eine Karte trägt "Empfohlen". Weitere, die exakt gleich viel nutzen,
+    // bekommen "gleichwertig" – sonst stehen drei Empfehlungen nebeneinander.
     const bestUsed=best.used;
     let bestShown=false;
     let html = canon.map(s=>{
-      const isBest = Math.abs(s.r.used-bestUsed)<0.5;
-      if(isBest) bestShown=true;
-      return renderScenario(s.name, s.r, amounts, nA, nB, isBest);
+      const isEqual = Math.abs(s.r.used-bestUsed)<EPS;
+      let tag = null;
+      if(isEqual){ tag = bestShown ? "equal" : "best"; bestShown = true; }
+      return renderScenario(s.name, s.r, amounts, nA, nB, tag);
     }).join("");
     if(!bestShown){
-      html = renderScenario("Optimale Aufteilung", best, amounts, nA, nB, true) + html;
+      html = renderScenario("Optimale Aufteilung", best, amounts, nA, nB, "best") + html;
     }
     $("scenarios").innerHTML = html;
 
     // dynamic note
+    // Achtung: cA+cB >= total heißt NICHT "es verpufft nichts" – die Aufteilung ist
+    // gestuft (0/50/100 bzw. 25/50/75), die passende Stufe muss es erst geben.
+    // Maßgeblich ist deshalb immer best.wasted.
     let msg="";
     if(!$("valA").value && !$("valB").value){
       msg = `<b>Trag oben eure Zahlen ein.</b> Ohne Eingabe kann ich die Aufnahmefähigkeit nicht bestimmen.`;
-    } else if(cA+cB >= total){
-      msg = `Beide zusammen können den vollen Bonus von <b>${eur(total)}</b> aufnehmen – es verpufft nichts.
-        Innerhalb dessen ist jede zulässige Aufteilung geldgleich; wählt sie so, wie es bei der Veranlagung praktisch ist.`;
+    } else if(best.wasted < EPS){
+      // Gleichwertig ist jede Aufteilung nur, wenn auch die für einen Elternteil
+      // ungünstigste zulässige Zuteilung noch unter seiner Tarifsteuer bleibt.
+      const maxShare = splitMode==="restricted" ? 0.75 : 1;
+      if(Math.min(cA,cB) >= maxShare*total - EPS){
+        msg = `Der volle Bonus von <b>${eur(total)}</b> kommt an – und zwar bei <b>jeder</b> zulässigen
+          Aufteilung. Nehmt die, die bei der Veranlagung am praktischsten ist.`;
+      } else {
+        msg = `Mit der markierten Aufteilung kommt der volle Bonus von <b>${eur(total)}</b> an – es verpufft nichts.
+          Das gilt aber <b>nicht</b> für jede Aufteilung: Wer zu viel auf den Elternteil mit der kleineren
+          Tarifsteuer schiebt, verschenkt Geld.`;
+      }
     } else {
-      const waste=best.wasted;
-      msg = `Zusammen könnt ihr höchstens <b>${eur(cA+cB)}</b> von <b>${eur(total)}</b> nutzen –
-        bei der besten Aufteilung bleiben <b>${eur(waste)}</b> ungenutzt.
-        Prüft für den Geringverdiener zusätzlich den <b>Kindermehrbetrag</b> (Negativsteuer, bis 700 €/Kind 2025) –
-        der greift genau dann, wenn kaum Tarifsteuer da ist.`;
+      msg = `Auch bei der besten zulässigen Aufteilung bleiben <b>${eur(best.wasted)}</b> von
+        <b>${eur(total)}</b> ungenutzt – mehr als <b>${eur(best.used)}</b> ist mit euren Tarifsteuern
+        nicht herauszuholen.
+        Prüft für den Elternteil mit der geringeren Steuer zusätzlich den <b>Kindermehrbetrag</b>
+        (Negativsteuer, bis 700 €/Kind) – der greift genau dann, wenn kaum Tarifsteuer da ist.`;
+    }
+    if(splitMode==="restricted"){
+      msg += `<br><br>Für 2027 sind die Tarifstufen noch nicht kundgemacht – gerechnet wird hier
+        mit den Stufen ${taxYear}.`;
     }
     $("dynNote").innerHTML = msg;
   }
 
-  function renderScenario(name, r, amounts, nA, nB, isBest){
-    return `<div class="scenario${isBest?" best":""}">
-      ${isBest?'<span class="flag">Empfohlen</span>':''}
+  // tag: "best" (genau einmal pro Durchlauf), "equal" (gleich gut, aber nicht die
+  // empfohlene Karte) oder null.
+  function renderScenario(name, r, amounts, nA, nB, tag){
+    const flag = tag==="best"  ? '<span class="flag">Empfohlen</span>'
+               : tag==="equal" ? '<span class="flag alt">gleichwertig</span>' : '';
+    return `<div class="scenario${tag==="best"?" best":""}">
+      ${flag}
       <div class="sc-top">
         <span class="sc-name">${name}</span>
         <span class="sc-split num">${splitText(r.fractions,amounts,nA,nB)}</span>
@@ -357,40 +433,48 @@
       <div class="sc-figs">
         <div class="fig used">genutzt<b class="num">${eur(r.used)}</b></div>
         <div class="fig waste">verpufft<b class="num">${eur(r.wasted)}</b></div>
-        <div class="fig">${nA} zugeteilt<b class="num">${eur(r.aSum)}</b></div>
-        <div class="fig">${nB} zugeteilt<b class="num">${eur(r.bSum)}</b></div>
+        <div class="fig">${esc(nA)} zugeteilt<b class="num">${eur(r.aSum)}</b></div>
+        <div class="fig">${esc(nB)} zugeteilt<b class="num">${eur(r.bSum)}</b></div>
       </div>
+      ${perChildTable(r,nA,nB)}
     </div>`;
   }
 
   // --- toggles ---
-  $("inputMode").querySelectorAll("button").forEach(b=>{
-    b.addEventListener("click",()=>{
-      inputMode=b.dataset.mode;
-      $("inputMode").querySelectorAll("button").forEach(x=>x.setAttribute("aria-pressed", x===b));
-      const inc = inputMode==="income";
-      $("labA").textContent = $("labB").textContent = inc ? "Steuerpfl. Jahreseinkommen (Tarif)" : "Tarifsteuer / Jahr";
-      $("valA").placeholder = inc ? "z. B. 55000" : "z. B. 11500";
-      $("valB").placeholder = inc ? "z. B. 32000" : "z. B. 4200";
-      $("modeHint").innerHTML = inc
-        ? 'Am L16 ≈ <b>KZ 245</b> (steuerpflichtige laufende Bezüge, ohne 13./14.). Ich rechne daraus die Tarifsteuer nach den Stufen 2025.'
-        : 'Wenn du die Tarifsteuer auf die laufenden Bezüge schon kennst, gib sie direkt ein – das ist am genauesten.';
-      compute();
+  // Alle Texte, die vom Steuerjahr oder vom Eingabemodus abhängen, an einer Stelle.
+  function refreshLabels(){
+    const inc = inputMode==="income";
+    $("labA").textContent = $("labB").textContent = inc ? "Steuerpfl. Jahreseinkommen (Tarif)" : "Tarifsteuer / Jahr";
+    $("valA").placeholder = inc ? "z. B. 55000" : "z. B. 11500";
+    $("valB").placeholder = inc ? "z. B. 32000" : "z. B. 4200";
+    $("modeHint").innerHTML = inc
+      ? 'Am L16 ≈ <b>KZ 245</b> (steuerpflichtige laufende Bezüge, ohne 13./14.). Ich rechne daraus die Tarifsteuer nach den Stufen '+taxYear+'.'
+      : 'Wenn du die Tarifsteuer auf die laufenden Bezüge schon kennst, gib sie direkt ein – das ist am genauesten.';
+    $("eyebrow").textContent = "§ 33 EStG · Kalenderjahr " + taxYear;
+    $("footYear").textContent = "Tarif " + taxYear;
+  }
+
+  function wireSeg(id, apply){
+    const box = $(id);
+    box.querySelectorAll("button").forEach(b=>{
+      b.addEventListener("click",()=>{
+        apply(b);
+        box.querySelectorAll("button").forEach(x=>x.setAttribute("aria-pressed", x===b));
+        refreshLabels(); compute();
+      });
     });
-  });
-  $("splitMode").querySelectorAll("button").forEach(b=>{
-    b.addEventListener("click",()=>{
-      splitMode=b.dataset.split;
-      $("splitMode").querySelectorAll("button").forEach(x=>x.setAttribute("aria-pressed", x===b));
-      compute();
-    });
-  });
+  }
+  wireSeg("taxYear",   b => { taxYear   = +b.dataset.year;  });
+  wireSeg("inputMode", b => { inputMode =  b.dataset.mode;  });
+  wireSeg("splitMode", b => { splitMode =  b.dataset.split; });
+
   $("addChild").addEventListener("click",()=>{
-    children.push({label:"Kind "+(children.length+1), amount:FB_U18});
+    children.push({label:"Kind "+(++childSeq), amount:FB_U18});
     renderChildren(); compute();
   });
   ["nameA","nameB","valA","valB"].forEach(id=>$(id).addEventListener("input",compute));
 
+  refreshLabels();
   renderChildren();
   compute();
 })();
