@@ -32,6 +32,10 @@ UI-Sprache: **Deutsch**. Kein Build-Step, keine Frameworks – gesamter Code in 
   (12 × 166,68 = 2.000,16). `childMode` = `birth` (Geburtsdatum, Default) | `amount` (Pauschale).
   `amountFor()` rundet je Kind auf volle Euro, **bevor** verteilt wird – sonst summieren sich
   die Zeilen der Tabelle je Kind nicht auf den Gesamtbetrag.
+- Geburtsdatum ist ein **Textfeld**, kein `input[type=date]`: iOS bietet dort nur den
+  Kalender ohne Tastatureingabe. `parseBirth()` nimmt TT.MM.JJJJ, TTMMJJJJ und JJJJ-MM-TT,
+  normalisiert erst im `change`-Handler (während des Tippens verspringt sonst der Cursor).
+  Zweistellige Jahre bleiben abgelehnt – Jahrhundert raten geht bei Geburtsdaten schief.
 - Aufteilungsregel: `splitMode` = `auto` (Default) | `free` | `restricted`; `effSplit()` löst
   `auto` aus `taxYear` + `ruleForYear()` auf. Datumsvergleiche laufen über Schlüssel `JJJJMMTT`
   (`key4`), **nicht** über `Date`-Objekte – sonst verschiebt die Zeitzone die Tagesgrenze.

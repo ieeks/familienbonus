@@ -130,7 +130,10 @@
     h1{font-size:23px}
     .parents{grid-template-columns:1fr}
     .child-row{grid-template-columns:1fr 1fr; gap:8px}
-    .child-row .del{grid-column:1 / -1; height:auto; padding:7px}
+    /* Rechenzeile vor den Löschen-Button, sonst trennt ein breiter Balken das
+       Feld von seinem Ergebnis. order wirkt auch auf Grid-Autoplacement. */
+    .child-row .child-calc{order:1}
+    .child-row .del{grid-column:1 / -1; height:auto; padding:7px; order:2}
     .ceilings{grid-template-columns:1fr}
   }
 </style>
@@ -275,15 +278,25 @@
   // --- Geburtsdatum → Monate → Betrag ---
   // Alles in absoluten Monatsindizes (Jahr*12 + Monat), das macht die Vergleiche
   // über Jahresgrenzen hinweg trivial.
+  // Freitext statt input[type=date]: iOS bietet dort ausschließlich den Kalender,
+  // für ein Geburtsdatum von 2018 wären das ~100 Tipps auf den Zurück-Pfeil.
+  // Erkannt werden TT.MM.JJJJ (auch mit / oder -), TTMMJJJJ und JJJJ-MM-TT.
+  // Zweistellige Jahre bewusst nicht – das Jahrhundert zu raten geht bei
+  // Geburtsdaten schief.
   function parseBirth(s){
-    const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s || "");
-    if(!m) return null;
-    const y=+m[1], mo=+m[2]-1, d=+m[3];
-    const dt = new Date(Date.UTC(y,mo,d));
-    if(dt.getUTCFullYear()!==y || dt.getUTCMonth()!==mo || dt.getUTCDate()!==d) return null;
-    if(y<1900 || y>2100) return null;
-    return {y, mo, d, abs:y*12+mo};
+    const t = String(s || "").trim();
+    if(!t) return null;
+    let m, y, mo, d;
+    if     ((m = /^(\d{4})-(\d{1,2})-(\d{1,2})$/.exec(t)))            { y=+m[1]; mo=+m[2]; d=+m[3]; }
+    else if((m = /^(\d{1,2})[.\/-](\d{1,2})[.\/-](\d{4})$/.exec(t)))  { d=+m[1]; mo=+m[2]; y=+m[3]; }
+    else if((m = /^(\d{2})(\d{2})(\d{4})$/.exec(t)))                  { d=+m[1]; mo=+m[2]; y=+m[3]; }
+    else return null;
+    if(y<1900 || y>2100 || mo<1 || mo>12 || d<1 || d>31) return null;
+    const dt = new Date(Date.UTC(y, mo-1, d));   // 31.02. gibt es nicht
+    if(dt.getUTCFullYear()!==y || dt.getUTCMonth()!==mo-1 || dt.getUTCDate()!==d) return null;
+    return {y, mo:mo-1, d, abs:y*12+(mo-1)};
   }
+  const fmtBirth = b => `${String(b.d).padStart(2,"0")}.${String(b.mo+1).padStart(2,"0")}.${b.y}`;
 
   // Anspruch besteht ab dem Geburtsmonat. Der hohe Satz gilt bis einschließlich des
   // Monats, in dem das Kind 18 wird; danach nur mit Familienbeihilfe der niedrige.
@@ -354,7 +367,9 @@
 
   function calcSummary(c){
     const b = parseBirth(c.birth);
-    if(!b) return `Geburtsdatum eintragen – daraus rechne ich den Monatsanteil für ${taxYear}.`;
+    if(!b) return String(c.birth||"").trim()
+      ? `<span class="warn">Datum nicht erkannt – als <b>TT.MM.JJJJ</b> eingeben, z. B. 27.07.2018.</span>`
+      : `Geburtsdatum eintragen – daraus rechne ich den Monatsanteil für ${taxYear}.`;
     const r = childYearAmount(c, taxYear);
     if(r.amount < 0.005){
       return b.y > taxYear
@@ -392,8 +407,9 @@
       row.className = "child-row";
       const second = childMode==="birth"
         ? `<label for="ch-birth-${i}">Geburtsdatum</label>
-           <input type="date" id="ch-birth-${i}" data-i="${i}" data-k="birth"
-                  max="2100-12-31" value="${esc(c.birth)}">`
+           <input type="text" id="ch-birth-${i}" data-i="${i}" data-k="birth"
+                  inputmode="numeric" autocomplete="off" maxlength="10"
+                  placeholder="TT.MM.JJJJ" value="${esc(c.birth)}">`
         : `<label for="ch-amount-${i}">Bonus / Jahr</label>
            <select id="ch-amount-${i}" data-i="${i}" data-k="amount">
              <option value="2000" ${c.amount===FB_U18?"selected":""}>2.000 € (bis 18)</option>
@@ -422,6 +438,14 @@
                    :                   el.value;
     if(k==="birth" || k==="beihilfe") refreshCalc(i, k==="birth");
     compute();
+  });
+  // Erst beim Verlassen des Feldes auf TT.MM.JJJJ normalisieren – während des
+  // Tippens würde das Umschreiben den Cursor verspringen lassen.
+  childBox.addEventListener("change", e=>{
+    const el = e.target, i = +el.dataset.i;
+    if(el.dataset.k !== "birth" || !children[i]) return;
+    const b = parseBirth(el.value);
+    if(b){ el.value = fmtBirth(b); children[i].birth = el.value; }
   });
   childBox.addEventListener("click", e=>{
     const b = e.target.closest("[data-del]");
@@ -635,9 +659,9 @@
     $("eyebrow").textContent = "§ 33 EStG · Kalenderjahr " + taxYear;
     $("footYear").textContent = "Tarif " + taxYear;
     $("childModeHint").innerHTML = childMode==="birth"
-      ? `Aus dem Geburtsdatum rechne ich den Monatsanteil für ${taxYear}: <b>${eur2(FB_M_U18)}</b> pro Monat
-         bis einschließlich des Monats, in dem das Kind 18 wird, danach <b>${eur2(FB_M_O18)}</b> – solange
-         Familienbeihilfe bezogen wird.`
+      ? `Als <b>TT.MM.JJJJ</b> eintippen (27.07.2018), <b>27072018</b> geht auch. Daraus rechne ich den
+         Monatsanteil für ${taxYear}: <b>${eur2(FB_M_U18)}</b> pro Monat bis einschließlich des Monats,
+         in dem das Kind 18 wird, danach <b>${eur2(FB_M_O18)}</b> – solange Familienbeihilfe bezogen wird.`
       : `Pauschal ${eur(FB_U18)} bzw. ${eur(FB_O18)} pro Jahr. Im Jahr des 18. Geburtstags stimmt beides nicht
          genau – dafür ist der Geburtsdatums-Modus da.`;
   }
