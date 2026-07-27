@@ -1,0 +1,399 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Familienbonus Plus – Aufteilungsrechner</title>
+<link rel="icon" type="image/svg+xml" href="icon.svg">
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%230F5E5A' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 20V11l7-6 7 6v9Z'/%3E%3Cpath d='M10 20v-4h4v4'/%3E%3Ccircle cx='18' cy='6' r='3.1' fill='white'/%3E%3Cpath d='M18 4.5v3M16.5 6h3'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Serif:ital,wght@0,400;0,600;1,400&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --paper:#F2F1EC; --card:#FBFAF6; --ink:#17191C; --muted:#6B6E73;
+    --line:#DED9CE; --line-strong:#C9C3B4;
+    --primary:#0F5E5A; --primary-soft:#E3EDEB; --primary-ink:#0B4744;
+    --amber:#B5751A; --amber-soft:#F5EAD6;
+    --waste:#A8402F;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html{-webkit-text-size-adjust:100%}
+  body{
+    font-family:"IBM Plex Sans",system-ui,sans-serif;
+    background:var(--paper); color:var(--ink);
+    line-height:1.5; padding:20px 16px 64px; max-width:720px; margin:0 auto;
+    -webkit-font-smoothing:antialiased;
+  }
+  .num{font-family:"IBM Plex Mono",monospace; font-variant-numeric:tabular-nums; font-feature-settings:"tnum"}
+
+  header{margin-bottom:22px}
+  .eyebrow{font-family:"IBM Plex Mono",monospace; font-size:11px; letter-spacing:.14em;
+    text-transform:uppercase; color:var(--primary); font-weight:500}
+  h1{font-family:"IBM Plex Serif",serif; font-weight:600; font-size:27px; line-height:1.15;
+    margin:6px 0 8px; letter-spacing:-.01em}
+  .lede{color:var(--muted); font-size:14px; max-width:56ch}
+
+  section{background:var(--card); border:1px solid var(--line); border-radius:12px;
+    padding:18px 16px; margin-bottom:16px}
+  .sec-head{display:flex; align-items:baseline; gap:10px; margin-bottom:14px}
+  .sec-num{font-family:"IBM Plex Mono",monospace; font-size:12px; font-weight:600;
+    color:var(--primary); border:1px solid var(--primary); border-radius:5px;
+    padding:1px 6px; line-height:1.4}
+  .sec-title{font-family:"IBM Plex Serif",serif; font-size:17px; font-weight:600}
+
+  label{display:block; font-size:12.5px; font-weight:500; color:var(--muted); margin-bottom:5px}
+  .hint{font-size:11.5px; color:var(--muted); margin-top:5px; line-height:1.45}
+  input[type=text],input[type=number],select{
+    width:100%; font-family:"IBM Plex Mono",monospace; font-size:15px; color:var(--ink);
+    background:var(--paper); border:1px solid var(--line-strong); border-radius:8px;
+    padding:10px 11px; outline:none; transition:border-color .12s, box-shadow .12s;
+  }
+  input:focus,select:focus{border-color:var(--primary); box-shadow:0 0 0 3px var(--primary-soft)}
+  select{-webkit-appearance:none; appearance:none;
+    background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'><path d='M2 4l4 4 4-4' stroke='%236B6E73' stroke-width='1.5' fill='none'/></svg>");
+    background-repeat:no-repeat; background-position:right 11px center; padding-right:30px}
+
+  .parents{display:grid; grid-template-columns:1fr 1fr; gap:14px}
+  .field{margin-bottom:12px}
+  .field:last-child{margin-bottom:0}
+  .name-in input{font-family:"IBM Plex Sans",sans-serif; font-weight:600; font-size:15px}
+
+  .seg{display:flex; border:1px solid var(--line-strong); border-radius:8px; overflow:hidden; margin-top:2px}
+  .seg button{flex:1; font-family:"IBM Plex Sans",sans-serif; font-size:12.5px; font-weight:500;
+    padding:9px 6px; background:var(--paper); border:none; color:var(--muted); cursor:pointer;
+    border-right:1px solid var(--line-strong)}
+  .seg button:last-child{border-right:none}
+  .seg button[aria-pressed=true]{background:var(--primary); color:#fff}
+
+  .child-row{display:grid; grid-template-columns:1.3fr 1fr auto; gap:10px; align-items:end;
+    padding-bottom:12px; margin-bottom:12px; border-bottom:1px dashed var(--line)}
+  .child-row:last-of-type{border-bottom:none; margin-bottom:6px}
+  .del{font-family:"IBM Plex Mono",monospace; background:var(--paper); border:1px solid var(--line-strong);
+    color:var(--waste); border-radius:8px; padding:9px 11px; cursor:pointer; font-size:14px; height:40px}
+  .add{font-family:"IBM Plex Sans",sans-serif; font-size:13px; font-weight:500; color:var(--primary);
+    background:var(--primary-soft); border:1px solid transparent; border-radius:8px;
+    padding:8px 12px; cursor:pointer}
+
+  /* results */
+  .ceilings{display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:16px}
+  .ceil{background:var(--paper); border:1px solid var(--line); border-radius:10px; padding:12px 13px}
+  .ceil .who{font-size:12px; font-weight:600; color:var(--ink); margin-bottom:6px}
+  .ceil .big{font-family:"IBM Plex Mono",monospace; font-size:20px; font-weight:600; color:var(--primary-ink)}
+  .ceil .cap{font-size:11px; color:var(--muted); margin-top:3px}
+
+  .scenario{border:1px solid var(--line); border-radius:11px; padding:13px 14px; margin-bottom:11px;
+    position:relative; background:var(--card)}
+  .scenario.best{border-color:var(--amber); background:var(--amber-soft); box-shadow:0 1px 0 var(--amber)}
+  .flag{position:absolute; top:-9px; right:12px; background:var(--amber); color:#fff;
+    font-family:"IBM Plex Mono",monospace; font-size:10px; letter-spacing:.08em; font-weight:600;
+    text-transform:uppercase; padding:2px 8px; border-radius:5px}
+  .sc-top{display:flex; justify-content:space-between; align-items:baseline; gap:10px; margin-bottom:9px}
+  .sc-name{font-size:13.5px; font-weight:600}
+  .sc-split{font-family:"IBM Plex Mono",monospace; font-size:12px; color:var(--muted)}
+  .bar{height:9px; border-radius:5px; background:var(--waste); overflow:hidden; margin-bottom:9px}
+  .bar > i{display:block; height:100%; background:var(--primary); border-radius:5px 0 0 5px}
+  .sc-figs{display:flex; gap:18px; flex-wrap:wrap}
+  .fig{font-size:11px; color:var(--muted)}
+  .fig b{display:block; font-family:"IBM Plex Mono",monospace; font-size:15px; font-weight:600;
+    color:var(--ink); margin-top:1px}
+  .fig.used b{color:var(--primary-ink)}
+  .fig.waste b{color:var(--waste)}
+
+  .note{font-size:12px; color:var(--muted); line-height:1.5; margin-top:14px;
+    padding-top:13px; border-top:1px solid var(--line)}
+  .note b{color:var(--ink); font-weight:600}
+  footer{font-size:11px; color:var(--muted); text-align:center; margin-top:20px; line-height:1.6}
+
+  @media (max-width:480px){
+    h1{font-size:23px}
+    .parents{grid-template-columns:1fr}
+    .child-row{grid-template-columns:1fr 1fr; gap:8px}
+    .child-row .del{grid-column:1 / -1; height:auto; padding:7px}
+    .ceilings{grid-template-columns:1fr}
+  }
+</style>
+</head>
+<body>
+<header>
+  <div class="eyebrow">§ 33 EStG · Kalenderjahr 2025</div>
+  <h1>Familienbonus Plus – wie teilt ihr am besten auf?</h1>
+  <p class="lede">Der Bonus senkt nur die Tarifsteuer auf die laufenden Bezüge – höchstens auf null.
+  Was ein Elternteil nicht an Steuer hat, verpufft. Der Rechner verteilt so, dass möglichst viel ankommt.</p>
+</header>
+
+<section>
+  <div class="sec-head"><span class="sec-num">01</span><span class="sec-title">Die Eltern</span></div>
+  <div class="parents">
+    <div>
+      <div class="field name-in">
+        <label>Name</label>
+        <input type="text" id="nameA" value="Elternteil A">
+      </div>
+      <div class="field">
+        <label id="labA">Steuerpfl. Jahreseinkommen (Tarif)</label>
+        <input type="number" id="valA" inputmode="numeric" placeholder="z. B. 55000">
+      </div>
+    </div>
+    <div>
+      <div class="field name-in">
+        <label>Name</label>
+        <input type="text" id="nameB" value="Elternteil B">
+      </div>
+      <div class="field">
+        <label id="labB">Steuerpfl. Jahreseinkommen (Tarif)</label>
+        <input type="number" id="valB" inputmode="numeric" placeholder="z. B. 32000">
+      </div>
+    </div>
+  </div>
+  <label style="margin-top:4px">Eingabe je Elternteil</label>
+  <div class="seg" id="inputMode">
+    <button data-mode="income" aria-pressed="true">Jahreseinkommen → ich rechne die Steuer</button>
+    <button data-mode="tax" aria-pressed="false">Tarifsteuer direkt eingeben</button>
+  </div>
+  <p class="hint" id="modeHint">Am L16 ≈ <b>KZ 245</b> (steuerpflichtige laufende Bezüge, ohne 13./14.).
+  Ich rechne daraus die Tarifsteuer nach den Stufen 2025.</p>
+</section>
+
+<section>
+  <div class="sec-head"><span class="sec-num">02</span><span class="sec-title">Die Kinder</span></div>
+  <div id="children"></div>
+  <button class="add" id="addChild">+ Kind hinzufügen</button>
+</section>
+
+<section>
+  <div class="sec-head"><span class="sec-num">03</span><span class="sec-title">Aufteilungsregel</span></div>
+  <div class="seg" id="splitMode">
+    <button data-split="free" aria-pressed="true">Freie Wahl (2025/2026)</button>
+    <button data-split="restricted" aria-pressed="false">Pflicht 25:75 / 50:50 (ab 2027)</button>
+  </div>
+  <p class="hint">Ab 2027 fällt die freie 100/0-Wahl weg, sobald <b>alle</b> Kinder im Haushalt ≥ 4 Jahre sind –
+  dann nur noch 25:75 oder 50:50. Solange ein Kind unter 4 im Haushalt lebt, bleibt die freie Wahl bestehen;
+  Alleinerziehende behalten ohnehin 100 %.</p>
+</section>
+
+<section>
+  <div class="sec-head"><span class="sec-num">04</span><span class="sec-title">Ergebnis</span></div>
+  <div class="ceilings" id="ceilings"></div>
+  <div id="scenarios"></div>
+  <div class="note" id="dynNote"></div>
+</section>
+
+<footer>
+  Vereinfachte Modellrechnung nach § 33 EStG, Tarif 2025 · keine Steuerberatung.<br>
+  Sonderzahlungen (13./14.) und Verkehrsabsetzbetrag wirken separat und sind hier bewusst ausgeklammert.
+</footer>
+
+<script>
+(function(){
+  "use strict";
+  const FB_U18 = 2000, FB_O18 = 700;
+  let inputMode = "income";   // income | tax
+  let splitMode = "free";     // free | restricted
+  let children = [
+    {label:"Kind 1", amount:FB_U18},
+    {label:"Kind 2", amount:FB_U18},
+  ];
+
+  // --- 2025 Tarif (BMF) ---
+  const BRACKETS = [
+    [13308, 0.00],[21617,0.20],[35836,0.30],[69166,0.40],
+    [103072,0.48],[1000000,0.50],[Infinity,0.55]
+  ];
+  function tarifsteuer(einkommen){
+    let tax=0, prev=0, e=Math.max(0,einkommen||0);
+    for(const [limit,rate] of BRACKETS){
+      if(e>prev){ tax += (Math.min(e,limit)-prev)*rate; prev=limit; } else break;
+    }
+    return tax;
+  }
+  const eur = n => (Math.round(n)).toLocaleString("de-AT") + " €";
+
+  // --- DOM refs ---
+  const $ = id => document.getElementById(id);
+  const childBox = $("children");
+
+  function renderChildren(){
+    childBox.innerHTML = "";
+    children.forEach((c,i)=>{
+      const row = document.createElement("div");
+      row.className = "child-row";
+      row.innerHTML = `
+        <div>
+          <label>Bezeichnung</label>
+          <input type="text" data-i="${i}" data-k="label" value="${c.label.replace(/"/g,'&quot;')}">
+        </div>
+        <div>
+          <label>Bonus / Jahr</label>
+          <select data-i="${i}" data-k="amount">
+            <option value="2000" ${c.amount===FB_U18?"selected":""}>2.000 € (bis 18)</option>
+            <option value="700" ${c.amount===FB_O18?"selected":""}>700 € (über 18, m. Beihilfe)</option>
+          </select>
+        </div>
+        <button class="del" data-del="${i}" title="entfernen">✕</button>`;
+      childBox.appendChild(row);
+    });
+    childBox.querySelectorAll("input,select").forEach(el=>{
+      el.addEventListener("input", e=>{
+        const i=+e.target.dataset.i, k=e.target.dataset.k;
+        children[i][k] = k==="amount" ? +e.target.value : e.target.value;
+        compute();
+      });
+    });
+    childBox.querySelectorAll("[data-del]").forEach(b=>{
+      b.addEventListener("click", e=>{
+        if(children.length<=1) return;
+        children.splice(+e.target.dataset.del,1);
+        renderChildren(); compute();
+      });
+    });
+  }
+
+  // --- optimisation ---
+  function ceilingFor(rawVal){
+    const v = rawVal||0;
+    return inputMode==="tax" ? Math.max(0,v) : tarifsteuer(v);
+  }
+  function evaluate(fractionsToA, amounts, cA, cB){
+    let aSum=0, total=0;
+    amounts.forEach((amt,i)=>{ aSum += amt*fractionsToA[i]; total += amt; });
+    const bSum = total - aSum;
+    const used = Math.min(aSum,cA) + Math.min(bSum,cB);
+    return {aSum,bSum,total,used,wasted:total-used,fractions:fractionsToA.slice()};
+  }
+  function bestSplit(amounts, cA, cB){
+    const opts = splitMode==="restricted" ? [0.25,0.5,0.75] : [0,0.5,1];
+    let best=null;
+    const n=amounts.length, cur=new Array(n);
+    (function rec(i){
+      if(i===n){
+        const r=evaluate(cur,amounts,cA,cB);
+        const bal = Math.abs(r.aSum-r.bSum); // tie-break: more even
+        if(!best || r.used>best.used+0.5 ||
+           (Math.abs(r.used-best.used)<0.5 && bal<best._bal)){ best=r; best._bal=bal; }
+        return;
+      }
+      for(const f of opts){ cur[i]=f; rec(i+1); }
+    })(0);
+    return best;
+  }
+  function scenarioBar(r){
+    const pct = r.total>0 ? Math.round(r.used/r.total*100) : 0;
+    return `<div class="bar"><i style="width:${pct}%"></i></div>`;
+  }
+  function splitText(fractions, amounts, nA, nB){
+    // aggregate share to A across children -> show as A:B percent of total
+    let aSum=0,total=0;
+    amounts.forEach((amt,i)=>{aSum+=amt*fractions[i];total+=amt;});
+    const pA = total? Math.round(aSum/total*100):0;
+    return `${nA} ${pA}% · ${nB} ${100-pA}%`;
+  }
+
+  function compute(){
+    const nA=$("nameA").value||"Elternteil A", nB=$("nameB").value||"Elternteil B";
+    const cA=ceilingFor(+$("valA").value), cB=ceilingFor(+$("valB").value);
+    const amounts=children.map(c=>c.amount);
+    const total=amounts.reduce((a,b)=>a+b,0);
+
+    // ceilings display
+    $("ceilings").innerHTML = [[nA,cA,$("valA").value],[nB,cB,$("valB").value]].map(([nm,c,raw])=>`
+      <div class="ceil">
+        <div class="who">${nm}</div>
+        <div class="big num">${eur(c)}</div>
+        <div class="cap">${inputMode==="tax"?"eingegebene Tarifsteuer":"Tarifsteuer 2025 aus "+(raw?eur(+raw):"–")}<br>= max. nutzbarer Bonus</div>
+      </div>`).join("");
+
+    // canonical scenarios
+    const allA = evaluate(amounts.map(()=>1),amounts,cA,cB);
+    const allB = evaluate(amounts.map(()=>0),amounts,cA,cB);
+    const half = evaluate(amounts.map(()=>0.5),amounts,cA,cB);
+    const best = bestSplit(amounts,cA,cB);
+
+    // is best meaningfully better than a simple 50/50?
+    const canon = [
+      {name:`Alles auf ${nA}`, r:allA, key:"allA"},
+      {name:`Alles auf ${nB}`, r:allB, key:"allB"},
+      {name:"Halbe-halbe (50/50)", r:half, key:"half"},
+    ];
+    if(splitMode==="restricted"){ canon.shift(); canon.shift(); } // 100/0 not allowed -> drop pure ones
+    // identify which canonical (if any) equals best.used; else show best separately
+    const bestUsed=best.used;
+    let bestShown=false;
+    let html = canon.map(s=>{
+      const isBest = Math.abs(s.r.used-bestUsed)<0.5;
+      if(isBest) bestShown=true;
+      return renderScenario(s.name, s.r, amounts, nA, nB, isBest);
+    }).join("");
+    if(!bestShown){
+      html = renderScenario("Optimale Aufteilung", best, amounts, nA, nB, true) + html;
+    }
+    $("scenarios").innerHTML = html;
+
+    // dynamic note
+    let msg="";
+    if(!$("valA").value && !$("valB").value){
+      msg = `<b>Trag oben eure Zahlen ein.</b> Ohne Eingabe kann ich die Aufnahmefähigkeit nicht bestimmen.`;
+    } else if(cA+cB >= total){
+      msg = `Beide zusammen können den vollen Bonus von <b>${eur(total)}</b> aufnehmen – es verpufft nichts.
+        Innerhalb dessen ist jede zulässige Aufteilung geldgleich; wählt sie so, wie es bei der Veranlagung praktisch ist.`;
+    } else {
+      const waste=best.wasted;
+      msg = `Zusammen könnt ihr höchstens <b>${eur(cA+cB)}</b> von <b>${eur(total)}</b> nutzen –
+        bei der besten Aufteilung bleiben <b>${eur(waste)}</b> ungenutzt.
+        Prüft für den Geringverdiener zusätzlich den <b>Kindermehrbetrag</b> (Negativsteuer, bis 700 €/Kind 2025) –
+        der greift genau dann, wenn kaum Tarifsteuer da ist.`;
+    }
+    $("dynNote").innerHTML = msg;
+  }
+
+  function renderScenario(name, r, amounts, nA, nB, isBest){
+    return `<div class="scenario${isBest?" best":""}">
+      ${isBest?'<span class="flag">Empfohlen</span>':''}
+      <div class="sc-top">
+        <span class="sc-name">${name}</span>
+        <span class="sc-split num">${splitText(r.fractions,amounts,nA,nB)}</span>
+      </div>
+      ${scenarioBar(r)}
+      <div class="sc-figs">
+        <div class="fig used">genutzt<b class="num">${eur(r.used)}</b></div>
+        <div class="fig waste">verpufft<b class="num">${eur(r.wasted)}</b></div>
+        <div class="fig">${nA} zugeteilt<b class="num">${eur(r.aSum)}</b></div>
+        <div class="fig">${nB} zugeteilt<b class="num">${eur(r.bSum)}</b></div>
+      </div>
+    </div>`;
+  }
+
+  // --- toggles ---
+  $("inputMode").querySelectorAll("button").forEach(b=>{
+    b.addEventListener("click",()=>{
+      inputMode=b.dataset.mode;
+      $("inputMode").querySelectorAll("button").forEach(x=>x.setAttribute("aria-pressed", x===b));
+      const inc = inputMode==="income";
+      $("labA").textContent = $("labB").textContent = inc ? "Steuerpfl. Jahreseinkommen (Tarif)" : "Tarifsteuer / Jahr";
+      $("valA").placeholder = inc ? "z. B. 55000" : "z. B. 11500";
+      $("valB").placeholder = inc ? "z. B. 32000" : "z. B. 4200";
+      $("modeHint").innerHTML = inc
+        ? 'Am L16 ≈ <b>KZ 245</b> (steuerpflichtige laufende Bezüge, ohne 13./14.). Ich rechne daraus die Tarifsteuer nach den Stufen 2025.'
+        : 'Wenn du die Tarifsteuer auf die laufenden Bezüge schon kennst, gib sie direkt ein – das ist am genauesten.';
+      compute();
+    });
+  });
+  $("splitMode").querySelectorAll("button").forEach(b=>{
+    b.addEventListener("click",()=>{
+      splitMode=b.dataset.split;
+      $("splitMode").querySelectorAll("button").forEach(x=>x.setAttribute("aria-pressed", x===b));
+      compute();
+    });
+  });
+  $("addChild").addEventListener("click",()=>{
+    children.push({label:"Kind "+(children.length+1), amount:FB_U18});
+    renderChildren(); compute();
+  });
+  ["nameA","nameB","valA","valB"].forEach(id=>$(id).addEventListener("input",compute));
+
+  renderChildren();
+  compute();
+})();
+</script>
+</body>
+</html>
