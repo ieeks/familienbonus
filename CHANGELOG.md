@@ -2,6 +2,34 @@
 
 Alle nennenswerten Änderungen. Format lose nach Keep-a-Changelog.
 
+## [1.2.0] — 2026-07-27
+
+### Neu
+- **Geburtsdatum je Kind** als neuer Standard-Eingabemodus (Umschalter „Eingabe je Kind",
+  die bisherige Betragsauswahl bleibt als zweite Option). Daraus wird der Bonus
+  **monatsgenau** für das gewählte Steuerjahr gerechnet: 166,68 € pro Monat bis
+  einschließlich des Monats, in dem das Kind 18 wird, danach 58,34 € – letzteres nur,
+  solange Familienbeihilfe bezogen wird (Checkbox, erscheint nur wenn relevant).
+  Damit stimmt auch das Jahr des 18. Geburtstags, in dem bisher *keiner* der beiden
+  Pauschalwerte richtig war. Anspruch beginnt im Geburtsmonat.
+- **Aufteilungsregel „Automatisch"** (neuer Default): löst sich aus Steuerjahr und
+  Geburtsdaten auf. Freie Wahl und Pflicht ab 2027 bleiben als Übersteuerung.
+- **Hinweis, ab wann die Pflicht greift.** Aus den Geburtsdaten wird das erste Jahr
+  bestimmt, in dem alle Kinder ganzjährig das 4. Lebensjahr vollendet haben, samt dem
+  Kind, an dem es hängt. Weil die Ausnahme haushaltsbezogen ist („kein weiteres Kind
+  unter 4"), ist die Regel alles-oder-nichts – der globale Umschalter bildet das korrekt ab.
+
+### Offen gelassen
+- Ob die Pflicht im **Übergangsjahr** bereits ab dem Monat des 4. Geburtstags greift oder
+  erst im Folgejahr, geht aus den zugänglichen Materialien nicht eindeutig hervor. Der
+  Rechner sagt das explizit dazu, statt eine Auslegung zu unterstellen.
+- Die Ausnahme bei **erhöhter Familienbeihilfe** (freie Wahl bleibt) ist noch nicht
+  modelliert.
+
+### Behoben
+- Beträge je Kind werden vor der Verteilung auf volle Euro gerundet. Sonst zeigte die
+  Tabelle je Kind 2.000 € + 1.458 € und die Summe 3.459 € (12 × 166,68 = 2.000,16).
+
 ## [1.1.1] — 2026-07-27
 
 ### Behoben

@@ -27,7 +27,18 @@ UI-Sprache: **Deutsch**. Kein Build-Step, keine Frameworks – gesamter Code in 
 - Optimierung: `bestSplit()` enumeriert pro Kind die zulässigen Anteile
   (frei: `[0,0.5,1]`; ab 2027: `[0.25,0.5,0.75]`) und maximiert den genutzten Bonus,
   Tie-Break auf gleichmäßigere Aufteilung.
-- Beträge: 2.000 € (bis 18), 700 € (über 18 mit Beihilfe).
+- Beträge sind **Monatsbeträge**: 166,68 € bis einschließlich des Monats des 18. Geburtstags,
+  danach 58,34 € (nur mit Familienbeihilfe). Die „2.000 €" / „700 €" sind gerundete Jahreswerte
+  (12 × 166,68 = 2.000,16). `childMode` = `birth` (Geburtsdatum, Default) | `amount` (Pauschale).
+  `amountFor()` rundet je Kind auf volle Euro, **bevor** verteilt wird – sonst summieren sich
+  die Zeilen der Tabelle je Kind nicht auf den Gesamtbetrag.
+- Aufteilungsregel: `splitMode` = `auto` (Default) | `free` | `restricted`; `effSplit()` löst
+  `auto` aus `taxYear` + `ruleForYear()` auf. Datumsvergleiche laufen über Schlüssel `JJJJMMTT`
+  (`key4`), **nicht** über `Date`-Objekte – sonst verschiebt die Zeitzone die Tagesgrenze.
+- Die 2027-Ausnahme ist **haushaltsbezogen** („kein weiteres Kind unter 4"), also
+  alles-oder-nichts. Ein globaler Umschalter bildet das korrekt ab; je Kind wäre falsch.
+  **Offen:** ob im Übergangsjahr monatsweise ab dem 4. Geburtstag oder erst ab Folgejahr –
+  nicht belegt, im UI ausdrücklich als offen gekennzeichnet. Nicht stillschweigend festlegen.
 
 **Tarifstufen** (Quelle BMF/WKO/AK) – je Jahr ein eigenes Array in `BRACKETS_BY_YEAR`,
 **nie ein bestehendes überschreiben**:

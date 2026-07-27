@@ -6,10 +6,12 @@
       Valorisierung ist bis inkl. 2028 ausgesetzt, der Betrag bleibt also stabil.
 - [ ] **Brutto → Tarif-Einkommen**-Helfer (SV-Abzug, 6-tel-Regelung Sonderzahlungen)
       als optionaler Aufklapp-Bereich.
-- [ ] **2027-Altersautomatik**: Geburtsdaten je Kind → prüfen, ob „alle Kinder ≥ 4"
-      im gewählten Jahr erfüllt ist (Monatsbetrachtung), Modus automatisch setzen.
-      Achtung: Die Ausnahme ist haushaltsbezogen – ein Kind unter 4 im Haushalt erhält
-      allen Kindern die freie Wahl.
+- [x] **2027-Altersautomatik**: Geburtsdaten je Kind, Modus „Automatisch", Hinweis ab
+      welchem Jahr die Pflicht greift.
+- [ ] **Übergangsjahr klären**: greift die Pflicht ab dem Monat des 4. Geburtstags oder
+      erst im Folgejahr? Aus den Materialien nicht eindeutig, im Tool offen gelassen.
+      Klärt sich mit dem Gesetzestext (§ 33 Abs. 3a EStG i. d. F. BBG 2027–2028).
+- [ ] **Erhöhte Familienbeihilfe**: erhält ebenfalls die freie Wahl ab 2027, fehlt noch.
 - [ ] **Tarifstufen 2027** ergänzen, sobald kundgemacht. Bis dahin weist der Modus
       „ab 2027" darauf hin, dass mit dem gewählten Jahr gerechnet wird.
 

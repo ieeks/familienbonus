@@ -44,7 +44,7 @@
 
   label,.grp-label{display:block; font-size:12.5px; font-weight:500; color:var(--muted); margin-bottom:5px}
   .hint{font-size:11.5px; color:var(--muted); margin-top:5px; line-height:1.45}
-  input[type=text],input[type=number],select{
+  input[type=text],input[type=number],input[type=date],select{
     width:100%; font-family:"IBM Plex Mono",monospace; font-size:15px; color:var(--ink);
     background:var(--paper); border:1px solid var(--line-strong); border-radius:8px;
     padding:10px 11px; outline:none; transition:border-color .12s, box-shadow .12s;
@@ -72,6 +72,12 @@
   .del{font-family:"IBM Plex Mono",monospace; background:var(--paper); border:1px solid var(--line-strong);
     color:var(--waste); border-radius:8px; padding:9px 11px; cursor:pointer; font-size:14px; height:40px}
   .del[disabled]{opacity:.35; cursor:not-allowed}
+  /* Ergebnis der Geburtsdatums-Rechnung, volle Zeilenbreite unter den Feldern */
+  .child-calc{grid-column:1 / -1; font-size:11.5px; color:var(--muted); line-height:1.45}
+  .child-calc b{font-family:"IBM Plex Mono",monospace; color:var(--ink); font-weight:600}
+  .child-calc .warn{color:var(--waste)}
+  .chk{display:flex; align-items:center; gap:7px; margin-top:5px; cursor:pointer}
+  .chk input{width:auto; accent-color:var(--primary); margin:0}
   .add{font-family:"IBM Plex Sans",sans-serif; font-size:13px; font-weight:500; color:var(--primary);
     background:var(--primary-soft); border:1px solid transparent; border-radius:8px;
     padding:8px 12px; cursor:pointer}
@@ -181,16 +187,24 @@
 
 <section aria-labelledby="sec-kinder">
   <div class="sec-head"><span class="sec-num" aria-hidden="true">02</span><h2 class="sec-title" id="sec-kinder">Die Kinder</h2></div>
-  <div id="children"></div>
+  <div class="grp-label">Eingabe je Kind</div>
+  <div class="seg" id="childMode" role="group" aria-label="Eingabe je Kind">
+    <button type="button" data-cmode="birth" aria-pressed="true">Geburtsdatum → ich rechne den Betrag</button>
+    <button type="button" data-cmode="amount" aria-pressed="false">Betrag direkt wählen</button>
+  </div>
+  <p class="hint" id="childModeHint"></p>
+  <div id="children" style="margin-top:14px"></div>
   <button type="button" class="add" id="addChild">+ Kind hinzufügen</button>
 </section>
 
 <section aria-labelledby="sec-regel">
   <div class="sec-head"><span class="sec-num" aria-hidden="true">03</span><h2 class="sec-title" id="sec-regel">Aufteilungsregel</h2></div>
   <div class="seg" id="splitMode" role="group" aria-label="Aufteilungsregel">
-    <button type="button" data-split="free" aria-pressed="true">Freie Wahl (bis 2026)</button>
-    <button type="button" data-split="restricted" aria-pressed="false">Pflicht 25:75 / 50:50 (ab 2027)</button>
+    <button type="button" data-split="auto" aria-pressed="true">Automatisch</button>
+    <button type="button" data-split="free" aria-pressed="false">Freie Wahl</button>
+    <button type="button" data-split="restricted" aria-pressed="false">Pflicht ab 2027</button>
   </div>
+  <p class="hint" id="splitHint"></p>
   <p class="hint">Ab 2027 fällt die freie 100/0-Wahl weg, sobald <b>alle</b> Kinder im Haushalt ≥ 4 Jahre sind –
   dann nur noch 25:75 oder 50:50. Solange ein Kind unter 4 im Haushalt lebt, bleibt die freie Wahl bestehen;
   Alleinerziehende behalten ohnehin 100 %.</p>
@@ -213,12 +227,17 @@
 (function(){
   "use strict";
   const FB_U18 = 2000, FB_O18 = 700;
+  // Der Familienbonus ist ein Monatsbetrag. 12 × 166,68 = 2.000,16, deshalb sind die
+  // "2.000 €" bzw. "700 €" gerundete Jahreswerte. Monatsgenau wird es im Jahr des
+  // 18. Geburtstags: bis einschließlich dieses Monats der hohe Satz, danach der niedrige.
+  const FB_M_U18 = 166.68, FB_M_O18 = 58.34;
   const EPS = 0.5;            // Cent-Rauschen; Beträge sind auf Euro gerundet
   let inputMode = "income";   // income | tax
-  let splitMode = "free";     // free | restricted
+  let childMode = "birth";    // birth | amount
+  let splitMode = "auto";     // auto | free | restricted
   let children = [
-    {label:"Kind 1", amount:FB_U18},
-    {label:"Kind 2", amount:FB_U18},
+    {label:"Kind 1", amount:FB_U18, birth:"", beihilfe:true},
+    {label:"Kind 2", amount:FB_U18, birth:"", beihilfe:true},
   ];
   // Fortlaufend, nicht children.length: sonst kollidiert der Name nach dem Löschen
   // eines Kindes mit einem bestehenden – und die Aufstellung je Kind wird mehrdeutig.
@@ -248,49 +267,168 @@
   // Formatter einmal anlegen, eur() läuft pro Tastendruck rund zwanzigmal.
   const NF = new Intl.NumberFormat("de-DE", {maximumFractionDigits:0});
   const eur = n => NF.format(Math.round(n)) + " €";
+  const NF2 = new Intl.NumberFormat("de-DE", {minimumFractionDigits:2, maximumFractionDigits:2});
+  const eur2 = n => NF2.format(n) + " €";
   const ESC = {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"};
   const esc = s => String(s).replace(/[&<>"']/g, c => ESC[c]);
+
+  // --- Geburtsdatum → Monate → Betrag ---
+  // Alles in absoluten Monatsindizes (Jahr*12 + Monat), das macht die Vergleiche
+  // über Jahresgrenzen hinweg trivial.
+  function parseBirth(s){
+    const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s || "");
+    if(!m) return null;
+    const y=+m[1], mo=+m[2]-1, d=+m[3];
+    const dt = new Date(Date.UTC(y,mo,d));
+    if(dt.getUTCFullYear()!==y || dt.getUTCMonth()!==mo || dt.getUTCDate()!==d) return null;
+    if(y<1900 || y>2100) return null;
+    return {y, mo, d, abs:y*12+mo};
+  }
+
+  // Anspruch besteht ab dem Geburtsmonat. Der hohe Satz gilt bis einschließlich des
+  // Monats, in dem das Kind 18 wird; danach nur mit Familienbeihilfe der niedrige.
+  function childYearAmount(c, year){
+    const b = parseBirth(c.birth);
+    if(!b) return null;
+    const turns18 = b.abs + 18*12;
+    let u18=0, o18=0;
+    for(let mo=0; mo<12; mo++){
+      const cur = year*12 + mo;
+      if(cur < b.abs) continue;                 // noch nicht geboren
+      if(cur <= turns18) u18++;
+      else if(c.beihilfe) o18++;
+    }
+    return {u18, o18, amount: u18*FB_M_U18 + o18*FB_M_O18,
+            over18Possible: (year*12+11) > turns18};
+  }
+
+  // "Vollendetes 4. Lebensjahr" = der 4. Geburtstag. Für die Aufteilungsregel ab 2027.
+  // Datumsvergleiche über einen sortierbaren Schlüssel JJJJMMTT – kein Date-Objekt,
+  // damit keine Zeitzone die Tagesgrenze verschieben kann.
+  const key4 = b => (b.y+4)*10000 + (b.mo+1)*100 + b.d;
+  const jan1 = y => y*10000 + 101;
+  const allBirths = () => children.map(c=>parseBirth(c.birth));
+
+  // Die Ausnahme ist haushaltsbezogen – ein Kind unter 4 erhält allen Kindern die
+  // freie Wahl. Damit ist die Regel alles-oder-nichts, nicht je Kind verschieden.
+  function ruleForYear(year){
+    const bs = allBirths();
+    if(bs.some(b=>!b)) return {state:"unknown"};
+    const ks = bs.map(key4);
+    if(ks.every(k => k <= jan1(year)))   return {state:"restricted"};  // ganzjährig alle ≥ 4
+    if(ks.some(k  => k >= jan1(year+1))) return {state:"free"};        // eines ganzjährig < 4
+    return {state:"mixed"};                                            // eines wird im Jahr 4
+  }
+
+  // Erstes Jahr, in dem die Pflicht zweifelsfrei für das ganze Jahr gilt, plus das
+  // Kind, an dem es hängt.
+  function firstRestrictedYear(){
+    const bs = allBirths();
+    if(bs.some(b=>!b)) return null;
+    let idx=0, max=key4(bs[0]);
+    bs.forEach((b,i)=>{ const k=key4(b); if(k>max){ max=k; idx=i; } });
+    const y = Math.floor(max/10000);
+    return {year: Math.max(2027, y + (max%10000===101 ? 0 : 1)), idx, key:max,
+            text: `${String(bs[idx].d).padStart(2,"0")}.${String(bs[idx].mo+1).padStart(2,"0")}.${bs[idx].y+4}`};
+  }
+
+  // "auto" löst sich aus Steuerjahr und Geburtsdaten auf; free/restricted übersteuern.
+  function effSplit(){
+    if(splitMode !== "auto") return splitMode;
+    if(taxYear < 2027) return "free";
+    return ruleForYear(taxYear).state === "restricted" ? "restricted" : "free";
+  }
 
   // --- DOM refs ---
   const $ = id => document.getElementById(id);
   const childBox = $("children");
+
+  // Betrag je Kind: im Geburtsdatums-Modus gerechnet, sonst die manuelle Auswahl.
+  // Auf volle Euro runden, bevor gerechnet wird: sonst zeigt die Tabelle je Kind
+  // 2.000 + 1.458 und die Summe 3.459 (12 × 166,68 sind 2.000,16).
+  function amountFor(c){
+    if(childMode !== "birth") return c.amount || 0;
+    const r = childYearAmount(c, taxYear);
+    return r ? Math.round(r.amount) : 0;
+  }
+
+  function calcSummary(c){
+    const b = parseBirth(c.birth);
+    if(!b) return `Geburtsdatum eintragen – daraus rechne ich den Monatsanteil für ${taxYear}.`;
+    const r = childYearAmount(c, taxYear);
+    if(r.amount < 0.005){
+      return b.y > taxYear
+        ? `<span class="warn">${taxYear} noch nicht geboren – kein Familienbonus.</span>`
+        : `<span class="warn">Kein Familienbonus ${taxYear} – über 18 ohne Familienbeihilfe.</span>`;
+    }
+    const parts = [];
+    if(r.u18) parts.push(`${r.u18} × ${eur2(FB_M_U18)}`);
+    if(r.o18) parts.push(`${r.o18} × ${eur2(FB_M_O18)}`);
+    return `Bonus ${taxYear}: <b>${eur(r.amount)}</b> · ${parts.join(" + ")}`;
+  }
+
+  function childCalcRow(c,i){
+    const r = childYearAmount(c, taxYear);
+    const chk = (r && r.over18Possible)
+      ? `<label class="chk"><input type="checkbox" data-i="${i}" data-k="beihilfe" ${c.beihilfe?"checked":""}>
+           <span>Familienbeihilfe nach dem 18. Geburtstag weiter bezogen</span></label>`
+      : "";
+    return `<div class="child-calc" id="ch-calc-${i}"><span id="ch-sum-${i}">${calcSummary(c)}</span>${chk}</div>`;
+  }
+
+  // Nach Datumsänderung die ganze Zeile neu (der Fokus liegt im Datumsfeld daneben),
+  // nach Beihilfe-Klick nur den Text – sonst verliert die Checkbox den Fokus.
+  function refreshCalc(i, full){
+    if(childMode !== "birth") return;
+    if(full){ const el=$("ch-calc-"+i); if(el) el.outerHTML = childCalcRow(children[i], i); }
+    else    { const el=$("ch-sum-"+i);  if(el) el.innerHTML  = calcSummary(children[i]); }
+  }
+  function refreshAllCalc(){ children.forEach((c,i)=>refreshCalc(i,true)); }
 
   function renderChildren(){
     childBox.innerHTML = "";
     children.forEach((c,i)=>{
       const row = document.createElement("div");
       row.className = "child-row";
+      const second = childMode==="birth"
+        ? `<label for="ch-birth-${i}">Geburtsdatum</label>
+           <input type="date" id="ch-birth-${i}" data-i="${i}" data-k="birth"
+                  max="2100-12-31" value="${esc(c.birth)}">`
+        : `<label for="ch-amount-${i}">Bonus / Jahr</label>
+           <select id="ch-amount-${i}" data-i="${i}" data-k="amount">
+             <option value="2000" ${c.amount===FB_U18?"selected":""}>2.000 € (bis 18)</option>
+             <option value="700" ${c.amount===FB_O18?"selected":""}>700 € (über 18, m. Beihilfe)</option>
+           </select>`;
       row.innerHTML = `
         <div>
           <label for="ch-label-${i}">Bezeichnung</label>
           <input type="text" id="ch-label-${i}" data-i="${i}" data-k="label" value="${esc(c.label)}">
         </div>
-        <div>
-          <label for="ch-amount-${i}">Bonus / Jahr</label>
-          <select id="ch-amount-${i}" data-i="${i}" data-k="amount">
-            <option value="2000" ${c.amount===FB_U18?"selected":""}>2.000 € (bis 18)</option>
-            <option value="700" ${c.amount===FB_O18?"selected":""}>700 € (über 18, m. Beihilfe)</option>
-          </select>
-        </div>
+        <div>${second}</div>
         <button type="button" class="del" data-del="${i}" title="entfernen"
-          aria-label="${esc(c.label)} entfernen" ${children.length<=1?"disabled":""}>✕</button>`;
+          aria-label="${esc(c.label)} entfernen" ${children.length<=1?"disabled":""}>✕</button>
+        ${childMode==="birth" ? childCalcRow(c,i) : ""}`;
       childBox.appendChild(row);
     });
-    childBox.querySelectorAll("input,select").forEach(el=>{
-      el.addEventListener("input", e=>{
-        const i=+e.target.dataset.i, k=e.target.dataset.k;
-        children[i][k] = k==="amount" ? +e.target.value : e.target.value;
-        compute();
-      });
-    });
-    childBox.querySelectorAll("[data-del]").forEach(b=>{
-      b.addEventListener("click", e=>{
-        if(children.length<=1) return;
-        children.splice(+e.target.dataset.del,1);
-        renderChildren(); compute();
-      });
-    });
   }
+
+  // Delegiert statt je Element: die Rechenzeile wird zwischendurch ersetzt,
+  // direkt gebundene Listener wären danach weg.
+  childBox.addEventListener("input", e=>{
+    const el = e.target, k = el.dataset.k, i = +el.dataset.i;
+    if(!k || !Number.isInteger(i) || !children[i]) return;
+    children[i][k] = k==="amount"   ? +el.value
+                   : k==="beihilfe" ?  el.checked
+                   :                   el.value;
+    if(k==="birth" || k==="beihilfe") refreshCalc(i, k==="birth");
+    compute();
+  });
+  childBox.addEventListener("click", e=>{
+    const b = e.target.closest("[data-del]");
+    if(!b || children.length<=1) return;
+    children.splice(+b.dataset.del,1);
+    renderChildren(); compute();
+  });
 
   // --- optimisation ---
   function ceilingFor(rawVal){
@@ -305,7 +443,7 @@
     return {aSum,bSum,total,used,wasted:total-used,fractions:fractionsToA.slice()};
   }
   function bestSplit(amounts, cA, cB){
-    const opts = splitMode==="restricted" ? [0.25,0.5,0.75] : [0,0.5,1];
+    const opts = effSplit()==="restricted" ? [0.25,0.5,0.75] : [0,0.5,1];
     let best=null;
     const n=amounts.length, cur=new Array(n);
     (function rec(i){
@@ -336,10 +474,10 @@
   }
 
   // Das eigentliche Ergebnis: was pro Kind bei wem einzutragen ist.
-  function perChildTable(r, nA, nB){
+  function perChildTable(r, amounts, nA, nB){
     if(children.length < 2) return "";
     const rows = children.map((c,i)=>{
-      const f = r.fractions[i], a = c.amount*f, b = c.amount-a;
+      const f = r.fractions[i], a = amounts[i]*f, b = amounts[i]-a;
       return `<div class="pc-row">
         <span class="pc-name">${esc(c.label)}</span>
         <span class="pc-share num">${Math.round(f*100)} % / ${Math.round((1-f)*100)} %</span>
@@ -363,7 +501,7 @@
   function compute(){
     const nA=$("nameA").value||"Elternteil A", nB=$("nameB").value||"Elternteil B";
     const cA=ceilingFor(+$("valA").value), cB=ceilingFor(+$("valB").value);
-    const amounts=children.map(c=>c.amount);
+    const amounts=children.map(amountFor);
     const total=amounts.reduce((a,b)=>a+b,0);
 
     // ceilings display
@@ -387,7 +525,7 @@
       {name:`Alles auf ${esc(nB)}`, plain:`Alles auf ${nB}`, r:allB, key:"allB"},
       {name:"Halbe-halbe (50/50)", plain:"Halbe-halbe (50/50)", r:half, key:"half"},
     ];
-    if(splitMode==="restricted"){ canon.shift(); canon.shift(); } // 100/0 not allowed -> drop pure ones
+    if(effSplit()==="restricted"){ canon.shift(); canon.shift(); } // 100/0 not allowed -> drop pure ones
 
     // Genau eine Karte trägt "Empfohlen". Weitere, die exakt gleich viel nutzen,
     // bekommen "gleichwertig" – sonst stehen drei Empfehlungen nebeneinander.
@@ -417,12 +555,16 @@
     // gestuft (0/50/100 bzw. 25/50/75), die passende Stufe muss es erst geben.
     // Maßgeblich ist deshalb immer best.wasted.
     let msg="";
-    if(!$("valA").value && !$("valB").value){
+    if(total < EPS){
+      msg = childMode==="birth"
+        ? `<b>Trag die Geburtsdaten der Kinder ein.</b> Daraus ergibt sich der Bonus je Kind für ${taxYear}.`
+        : `<b>Kein Bonus zu verteilen.</b> Prüf die Beträge je Kind.`;
+    } else if(!$("valA").value && !$("valB").value){
       msg = `<b>Trag oben eure Zahlen ein.</b> Ohne Eingabe kann ich die Aufnahmefähigkeit nicht bestimmen.`;
     } else if(best.wasted < EPS){
       // Gleichwertig ist jede Aufteilung nur, wenn auch die für einen Elternteil
       // ungünstigste zulässige Zuteilung noch unter seiner Tarifsteuer bleibt.
-      const maxShare = splitMode==="restricted" ? 0.75 : 1;
+      const maxShare = effSplit()==="restricted" ? 0.75 : 1;
       if(Math.min(cA,cB) >= maxShare*total - EPS){
         msg = `Der volle Bonus von <b>${eur(total)}</b> kommt an – und zwar bei <b>jeder</b> zulässigen
           Aufteilung. Nehmt die, die bei der Veranlagung am praktischsten ist.`;
@@ -438,11 +580,12 @@
         Prüft für den Elternteil mit der geringeren Steuer zusätzlich den <b>Kindermehrbetrag</b>
         (Negativsteuer, bis 700 €/Kind) – der greift genau dann, wenn kaum Tarifsteuer da ist.`;
     }
-    if(splitMode==="restricted"){
+    if(effSplit()==="restricted"){
       msg += `<br><br>Für 2027 sind die Tarifstufen noch nicht kundgemacht – gerechnet wird hier
         mit den Stufen ${taxYear}.`;
     }
     $("dynNote").innerHTML = msg;
+    $("splitHint").innerHTML = splitHintText();   // hängt an Geburtsdaten und Steuerjahr
 
     // Kurzfassung für die Sprachausgabe (siehe announce()).
     let liveText = "";
@@ -475,7 +618,7 @@
         <div class="fig">${esc(nA)} zugeteilt<b class="num">${eur(r.aSum)}</b></div>
         <div class="fig">${esc(nB)} zugeteilt<b class="num">${eur(r.bSum)}</b></div>
       </div>
-      ${perChildTable(r,nA,nB)}
+      ${perChildTable(r,amounts,nA,nB)}
     </div>`;
   }
 
@@ -491,6 +634,39 @@
       : 'Wenn du die Tarifsteuer auf die laufenden Bezüge schon kennst, gib sie direkt ein – das ist am genauesten.';
     $("eyebrow").textContent = "§ 33 EStG · Kalenderjahr " + taxYear;
     $("footYear").textContent = "Tarif " + taxYear;
+    $("childModeHint").innerHTML = childMode==="birth"
+      ? `Aus dem Geburtsdatum rechne ich den Monatsanteil für ${taxYear}: <b>${eur2(FB_M_U18)}</b> pro Monat
+         bis einschließlich des Monats, in dem das Kind 18 wird, danach <b>${eur2(FB_M_O18)}</b> – solange
+         Familienbeihilfe bezogen wird.`
+      : `Pauschal ${eur(FB_U18)} bzw. ${eur(FB_O18)} pro Jahr. Im Jahr des 18. Geburtstags stimmt beides nicht
+         genau – dafür ist der Geburtsdatums-Modus da.`;
+  }
+
+  function splitHintText(){
+    const eff = effSplit();
+    const wie = eff==="restricted" ? "Pflicht 25:75 / 50:50" : "freie Wahl";
+    const kopf = splitMode==="auto"
+      ? `Automatisch für ${taxYear}: <b>${wie}</b>.`
+      : `Manuell gesetzt: <b>${wie}</b>.`;
+
+    if(childMode!=="birth" || allBirths().some(b=>!b)){
+      return `${kopf} Ohne vollständige Geburtsdaten kann ich die Altersbedingung nicht prüfen –
+              ab 2027 musst du den Modus selbst wählen.`;
+    }
+    const f = firstRestrictedYear();
+    const übergang = Math.floor(f.key/10000);
+    // Liegt der letzte 4. Geburtstag vor 2027, ist nicht er der Grund für den
+    // Starttermin, sondern der Beginn der Regel selbst – dann kein Datum nennen.
+    let s = f.year > 2027
+      ? `${kopf} Nach den Geburtsdaten greift die Pflicht ab <b>${f.year}</b> –
+         ${esc(children[f.idx].label)} wird am ${f.text} vier.`
+      : `${kopf} Nach den Geburtsdaten greift die Pflicht ab <b>2027</b>, dem ersten Jahr der
+         neuen Regel – alle Kinder haben das 4. Lebensjahr bis dahin vollendet.`;
+    if(übergang >= 2027 && f.key%10000 !== 101){
+      s += ` Im Übergangsjahr ${übergang} ist aus den Materialien nicht eindeutig, ob die Pflicht
+             schon ab dem Geburtsmonat gilt oder erst im Folgejahr – das ist hier bewusst offen gelassen.`;
+    }
+    return s;
   }
 
   function wireSeg(id, apply){
@@ -503,12 +679,14 @@
       });
     });
   }
-  wireSeg("taxYear",   b => { taxYear   = +b.dataset.year;  });
+  // Der Betrag je Kind hängt am Steuerjahr, die Rechenzeilen müssen also mit.
+  wireSeg("taxYear",   b => { taxYear   = +b.dataset.year; refreshAllCalc(); });
   wireSeg("inputMode", b => { inputMode =  b.dataset.mode;  });
   wireSeg("splitMode", b => { splitMode =  b.dataset.split; });
+  wireSeg("childMode", b => { childMode =  b.dataset.cmode; renderChildren(); });
 
   $("addChild").addEventListener("click",()=>{
-    children.push({label:"Kind "+(++childSeq), amount:FB_U18});
+    children.push({label:"Kind "+(++childSeq), amount:FB_U18, birth:"", beihilfe:true});
     renderChildren(); compute();
   });
   ["nameA","nameB","valA","valB"].forEach(id=>$(id).addEventListener("input",compute));
