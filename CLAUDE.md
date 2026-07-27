@@ -60,6 +60,8 @@ UI-Sprache: **Deutsch**. Kein Build-Step, keine Frameworks – gesamter Code in 
 - paper `#F2F1EC`, card `#FBFAF6`, ink `#17191C`, muted `#6B6E73`, line `#DED9CE`
 - primary/petrol `#0F5E5A`, primary-soft `#E3EDEB`, amber (Empfehlung) `#B5751A`, waste `#A8402F`
 - Type: IBM Plex Serif (Headings), IBM Plex Sans (UI), IBM Plex Mono (**alle Zahlen**, `.num`, tabular-nums)
+- Beträge immer über `eur()`. Das nutzt bewusst `Intl.NumberFormat("de-DE")` – `de-AT`
+  gruppiert mit U+00A0 („13 593"), AT-Konvention ist der Punkt („13.593").
 - Signatur: Ledger-Optik, Mono-Zahlen, „genutzt vs. verpufft"-Balken pro Szenario,
   Empfehlung mit amber Flag.
 

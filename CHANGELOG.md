@@ -2,6 +2,20 @@
 
 Alle nennenswerten Änderungen. Format lose nach Keep-a-Changelog.
 
+## [1.1.1] — 2026-07-27
+
+### Behoben
+- **Tausendertrennzeichen.** `toLocaleString("de-AT")` gruppiert mit U+00A0
+  („13 593 €"). Österreichische Konvention und die BMF-Formulare schreiben „13.593 €".
+  Umgestellt auf einen einmal angelegten `Intl.NumberFormat("de-DE")` – bei ganzen
+  Euro-Beträgen exakt die AT-Schreibweise, und der Formatter wird nicht mehr bei
+  jedem der rund zwanzig `eur()`-Aufrufe pro Tastendruck neu gebaut.
+- **`<label for>` fehlte durchgehend.** Kein Label war mit seinem Feld verknüpft:
+  Klick aufs Label fokussierte nicht, Screenreader lasen beim Sprung ins Feld keinen
+  Namen vor. Alle acht Labels sind jetzt verknüpft; die Kind-Zeilen bekommen
+  indexbasierte IDs (`ch-label-N`, `ch-amount-N`), die auch nach Hinzufügen und
+  Löschen eindeutig bleiben.
+
 ## [1.1.0] — 2026-07-27
 
 ### Behoben

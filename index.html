@@ -139,21 +139,21 @@
   <div class="parents">
     <div>
       <div class="field name-in">
-        <label>Name</label>
+        <label for="nameA">Name</label>
         <input type="text" id="nameA" value="Elternteil A">
       </div>
       <div class="field">
-        <label id="labA">Steuerpfl. Jahreseinkommen (Tarif)</label>
+        <label id="labA" for="valA">Steuerpfl. Jahreseinkommen (Tarif)</label>
         <input type="number" id="valA" inputmode="numeric" placeholder="z. B. 55000">
       </div>
     </div>
     <div>
       <div class="field name-in">
-        <label>Name</label>
+        <label for="nameB">Name</label>
         <input type="text" id="nameB" value="Elternteil B">
       </div>
       <div class="field">
-        <label id="labB">Steuerpfl. Jahreseinkommen (Tarif)</label>
+        <label id="labB" for="valB">Steuerpfl. Jahreseinkommen (Tarif)</label>
         <input type="number" id="valB" inputmode="numeric" placeholder="z. B. 32000">
       </div>
     </div>
@@ -239,7 +239,11 @@
     }
     return tax;
   }
-  const eur = n => (Math.round(n)).toLocaleString("de-AT") + " €";
+  // Nicht "de-AT": diese Locale gruppiert mit U+00A0 ("13 593"). Österreichische
+  // Konvention und die BMF-Formulare schreiben "13.593" – das liefert "de-DE".
+  // Formatter einmal anlegen, eur() läuft pro Tastendruck rund zwanzigmal.
+  const NF = new Intl.NumberFormat("de-DE", {maximumFractionDigits:0});
+  const eur = n => NF.format(Math.round(n)) + " €";
   const ESC = {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"};
   const esc = s => String(s).replace(/[&<>"']/g, c => ESC[c]);
 
@@ -254,12 +258,12 @@
       row.className = "child-row";
       row.innerHTML = `
         <div>
-          <label>Bezeichnung</label>
-          <input type="text" data-i="${i}" data-k="label" value="${esc(c.label)}">
+          <label for="ch-label-${i}">Bezeichnung</label>
+          <input type="text" id="ch-label-${i}" data-i="${i}" data-k="label" value="${esc(c.label)}">
         </div>
         <div>
-          <label>Bonus / Jahr</label>
-          <select data-i="${i}" data-k="amount">
+          <label for="ch-amount-${i}">Bonus / Jahr</label>
+          <select id="ch-amount-${i}" data-i="${i}" data-k="amount">
             <option value="2000" ${c.amount===FB_U18?"selected":""}>2.000 € (bis 18)</option>
             <option value="700" ${c.amount===FB_O18?"selected":""}>700 € (über 18, m. Beihilfe)</option>
           </select>
