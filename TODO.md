@@ -21,9 +21,8 @@
       liegt (DP über erreichbare Summen statt Enumeration).
 - [x] **Zahlenformat**: „13.593 €" statt „13 593 €" (`Intl.NumberFormat("de-DE")`).
 - [x] **`<label for>`** für alle Felder, inkl. indexbasierter IDs in den Kind-Zeilen.
-- [ ] **Accessibility, Rest**: nur eine Überschrift (`h1`), Sektionstitel sind `<div>`
-      statt `<h2>`. Ergebnisbereich aktualisiert ohne `aria-live`, Screenreader
-      bekommen die Neuberechnung nicht mit.
+- [x] **Accessibility, Rest**: Sektionstitel als `<h2>`, Sections über `aria-labelledby`
+      benannt, Live-Region für das Ergebnis (entprellt).
 - [ ] **Google Fonts selbst hosten** – DSGVO, IP-Übertragung an Google bei einem Tool
       für österreichische Eltern. Single-file bleibt möglich (Font-Dateien danebenlegen).
 - [ ] **Alleinerzieher-/Alleinverdienerfall**: behalten ab 2027 100 %, wird derzeit nicht

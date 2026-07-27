@@ -112,6 +112,9 @@
   .pc-share{font-size:11px; color:var(--muted)}
   .pc-eur{font-size:12px; color:var(--ink); min-width:11ch; text-align:right}
 
+  .sr-only{position:absolute; width:1px; height:1px; margin:-1px; padding:0;
+    overflow:hidden; clip:rect(0 0 0 0); clip-path:inset(50%); white-space:nowrap; border:0}
+
   .note{font-size:12px; color:var(--muted); line-height:1.5; margin-top:14px;
     padding-top:13px; border-top:1px solid var(--line)}
   .note b{color:var(--ink); font-weight:600}
@@ -134,8 +137,8 @@
   Was ein Elternteil nicht an Steuer hat, verpufft. Der Rechner verteilt so, dass möglichst viel ankommt.</p>
 </header>
 
-<section>
-  <div class="sec-head"><span class="sec-num">01</span><span class="sec-title">Die Eltern</span></div>
+<section aria-labelledby="sec-eltern">
+  <div class="sec-head"><span class="sec-num" aria-hidden="true">01</span><h2 class="sec-title" id="sec-eltern">Die Eltern</h2></div>
   <div class="parents">
     <div>
       <div class="field name-in">
@@ -176,14 +179,14 @@
   Ich rechne daraus die Tarifsteuer nach den Stufen 2025.</p>
 </section>
 
-<section>
-  <div class="sec-head"><span class="sec-num">02</span><span class="sec-title">Die Kinder</span></div>
+<section aria-labelledby="sec-kinder">
+  <div class="sec-head"><span class="sec-num" aria-hidden="true">02</span><h2 class="sec-title" id="sec-kinder">Die Kinder</h2></div>
   <div id="children"></div>
   <button type="button" class="add" id="addChild">+ Kind hinzufügen</button>
 </section>
 
-<section>
-  <div class="sec-head"><span class="sec-num">03</span><span class="sec-title">Aufteilungsregel</span></div>
+<section aria-labelledby="sec-regel">
+  <div class="sec-head"><span class="sec-num" aria-hidden="true">03</span><h2 class="sec-title" id="sec-regel">Aufteilungsregel</h2></div>
   <div class="seg" id="splitMode" role="group" aria-label="Aufteilungsregel">
     <button type="button" data-split="free" aria-pressed="true">Freie Wahl (bis 2026)</button>
     <button type="button" data-split="restricted" aria-pressed="false">Pflicht 25:75 / 50:50 (ab 2027)</button>
@@ -193,11 +196,12 @@
   Alleinerziehende behalten ohnehin 100 %.</p>
 </section>
 
-<section>
-  <div class="sec-head"><span class="sec-num">04</span><span class="sec-title">Ergebnis</span></div>
+<section aria-labelledby="sec-ergebnis">
+  <div class="sec-head"><span class="sec-num" aria-hidden="true">04</span><h2 class="sec-title" id="sec-ergebnis">Ergebnis</h2></div>
   <div class="ceilings" id="ceilings"></div>
   <div id="scenarios"></div>
   <div class="note" id="dynNote"></div>
+  <p class="sr-only" id="live" role="status" aria-live="polite" aria-atomic="true"></p>
 </section>
 
 <footer>
@@ -346,6 +350,16 @@
       <div class="pc-head">je Kind · ${esc(nA)} / ${esc(nB)}</div>${rows}</div>`;
   }
 
+  // Ohne Live-Region bekommen Screenreader die Neuberechnung gar nicht mit. Die
+  // Ergebnis-Container selbst live zu schalten wäre aber unbrauchbar: sie ändern sich
+  // bei jedem Tastendruck und würden jedes Mal vollständig vorgelesen. Stattdessen
+  // eine kurze Zusammenfassung, entprellt bis zur Tipp-Pause.
+  let liveTimer = null;
+  function announce(text){
+    clearTimeout(liveTimer);
+    liveTimer = setTimeout(()=>{ $("live").textContent = text; }, 700);
+  }
+
   function compute(){
     const nA=$("nameA").value||"Elternteil A", nB=$("nameB").value||"Elternteil B";
     const cA=ceilingFor(+$("valA").value), cB=ceilingFor(+$("valB").value);
@@ -367,24 +381,33 @@
     const best = bestSplit(amounts,cA,cB);
 
     // is best meaningfully better than a simple 50/50?
+    // plain = ungeescapt, für die Sprachausgabe (textContent escapt selbst)
     const canon = [
-      {name:`Alles auf ${esc(nA)}`, r:allA, key:"allA"},
-      {name:`Alles auf ${esc(nB)}`, r:allB, key:"allB"},
-      {name:"Halbe-halbe (50/50)", r:half, key:"half"},
+      {name:`Alles auf ${esc(nA)}`, plain:`Alles auf ${nA}`, r:allA, key:"allA"},
+      {name:`Alles auf ${esc(nB)}`, plain:`Alles auf ${nB}`, r:allB, key:"allB"},
+      {name:"Halbe-halbe (50/50)", plain:"Halbe-halbe (50/50)", r:half, key:"half"},
     ];
     if(splitMode==="restricted"){ canon.shift(); canon.shift(); } // 100/0 not allowed -> drop pure ones
 
     // Genau eine Karte trägt "Empfohlen". Weitere, die exakt gleich viel nutzen,
     // bekommen "gleichwertig" – sonst stehen drei Empfehlungen nebeneinander.
+    // bestName/bestR beschreiben die tatsächlich markierte Karte – nicht best aus
+    // bestSplit(). Bei Gleichstand sind das verschiedene Aufteilungen (z. B. Karte
+    // "Alles auf A", während bestSplit über den Tie-Break bei 0:100 / 100:0 landet).
     const bestUsed=best.used;
-    let bestShown=false;
+    let bestShown=false, bestName="", bestR=best;
     let html = canon.map(s=>{
       const isEqual = Math.abs(s.r.used-bestUsed)<EPS;
       let tag = null;
-      if(isEqual){ tag = bestShown ? "equal" : "best"; bestShown = true; }
+      if(isEqual){
+        tag = bestShown ? "equal" : "best";
+        if(!bestShown){ bestName = s.plain; bestR = s.r; }
+        bestShown = true;
+      }
       return renderScenario(s.name, s.r, amounts, nA, nB, tag);
     }).join("");
     if(!bestShown){
+      bestName = "Optimale Aufteilung";
       html = renderScenario("Optimale Aufteilung", best, amounts, nA, nB, "best") + html;
     }
     $("scenarios").innerHTML = html;
@@ -420,6 +443,18 @@
         mit den Stufen ${taxYear}.`;
     }
     $("dynNote").innerHTML = msg;
+
+    // Kurzfassung für die Sprachausgabe (siehe announce()).
+    let liveText = "";
+    if($("valA").value || $("valB").value){
+      const uniform = bestR.fractions.every(f => f === bestR.fractions[0]);
+      const pA = Math.round(bestR.fractions[0]*100);
+      const wie = uniform ? `${nA} ${pA} Prozent, ${nB} ${100-pA} Prozent`
+                          : "Aufteilung je Kind unterschiedlich";
+      liveText = `Empfehlung: ${bestName}, ${wie}. `
+               + `Genutzt ${eur(bestR.used)} von ${eur(total)}, verpufft ${eur(bestR.wasted)}.`;
+    }
+    announce(liveText);
   }
 
   // tag: "best" (genau einmal pro Durchlauf), "equal" (gleich gut, aber nicht die
