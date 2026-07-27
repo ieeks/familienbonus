@@ -19,10 +19,10 @@
       `max(0, aSum−cA) + max(0, total−aSum−cB)` und wird für jedes `aSum` im Intervall
       `[total−cB, cA]` minimal → erreichbare Summe suchen, die dem Intervall am nächsten
       liegt (DP über erreichbare Summen statt Enumeration).
-- [ ] **Zahlenformat**: `toLocaleString("de-AT")` liefert U+00A0 als Tausendertrenner
-      („13 593 €"). AT-Konvention ist „13.593 €" → `de-DE` oder eigenes `Intl.NumberFormat`.
-- [ ] **Accessibility**: kein `<label for>` im Dokument, nur eine Überschrift (`h1`),
-      Sektionstitel sind `<div>`. Ergebnisbereich aktualisiert ohne `aria-live`.
+- [x] **Zahlenformat**: „13.593 €" statt „13 593 €" (`Intl.NumberFormat("de-DE")`).
+- [x] **`<label for>`** für alle Felder, inkl. indexbasierter IDs in den Kind-Zeilen.
+- [x] **Accessibility, Rest**: Sektionstitel als `<h2>`, Sections über `aria-labelledby`
+      benannt, Live-Region für das Ergebnis (entprellt).
 - [ ] **Google Fonts selbst hosten** – DSGVO, IP-Übertragung an Google bei einem Tool
       für österreichische Eltern. Single-file bleibt möglich (Font-Dateien danebenlegen).
 - [ ] **Alleinerzieher-/Alleinverdienerfall**: behalten ab 2027 100 %, wird derzeit nicht

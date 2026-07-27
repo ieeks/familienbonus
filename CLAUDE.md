@@ -51,6 +51,11 @@ UI-Sprache: **Deutsch**. Kein Build-Step, keine Frameworks – gesamter Code in 
 - **Alles, was aus einem Eingabefeld kommt, läuft durch `esc()`**, bevor es in `innerHTML`
   landet (Namen, Kind-Bezeichnungen). Spätestens mit dem geplanten teilbaren Link
   (Zustand in der URL) wäre das sonst eine echte XSS.
+- **Die Live-Region beschreibt die markierte Karte, nicht `bestSplit()`.** Bei Gleichstand
+  sind das verschiedene Aufteilungen: gezeigt wird das erste passende kanonische Szenario,
+  während `bestSplit()` über den Tie-Break z. B. bei 0:100/100:0 landet. Dafür gibt es
+  `bestR`/`bestName`; wer stattdessen `best` nimmt, produziert eine Ansage, die nicht zur
+  Karte passt.
 - **`bestSplit()` ist 3^n Brute Force** (14 Kinder ≈ 0,8 s pro Tastendruck). Vor „viele
   Kinder"-Features durch eine geschlossene Lösung ersetzen: gesucht ist die erreichbare
   Summe für A möglichst nahe am Intervall `[total-cB, cA]`.
@@ -60,6 +65,8 @@ UI-Sprache: **Deutsch**. Kein Build-Step, keine Frameworks – gesamter Code in 
 - paper `#F2F1EC`, card `#FBFAF6`, ink `#17191C`, muted `#6B6E73`, line `#DED9CE`
 - primary/petrol `#0F5E5A`, primary-soft `#E3EDEB`, amber (Empfehlung) `#B5751A`, waste `#A8402F`
 - Type: IBM Plex Serif (Headings), IBM Plex Sans (UI), IBM Plex Mono (**alle Zahlen**, `.num`, tabular-nums)
+- Beträge immer über `eur()`. Das nutzt bewusst `Intl.NumberFormat("de-DE")` – `de-AT`
+  gruppiert mit U+00A0 („13 593"), AT-Konvention ist der Punkt („13.593").
 - Signatur: Ledger-Optik, Mono-Zahlen, „genutzt vs. verpufft"-Balken pro Szenario,
   Empfehlung mit amber Flag.
 

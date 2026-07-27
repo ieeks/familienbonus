@@ -2,6 +2,29 @@
 
 Alle nennenswerten Änderungen. Format lose nach Keep-a-Changelog.
 
+## [1.1.1] — 2026-07-27
+
+### Behoben
+- **Tausendertrennzeichen.** `toLocaleString("de-AT")` gruppiert mit U+00A0
+  („13 593 €"). Österreichische Konvention und die BMF-Formulare schreiben „13.593 €".
+  Umgestellt auf einen einmal angelegten `Intl.NumberFormat("de-DE")` – bei ganzen
+  Euro-Beträgen exakt die AT-Schreibweise, und der Formatter wird nicht mehr bei
+  jedem der rund zwanzig `eur()`-Aufrufe pro Tastendruck neu gebaut.
+- **`<label for>` fehlte durchgehend.** Kein Label war mit seinem Feld verknüpft:
+  Klick aufs Label fokussierte nicht, Screenreader lasen beim Sprung ins Feld keinen
+  Namen vor. Alle acht Labels sind jetzt verknüpft; die Kind-Zeilen bekommen
+  indexbasierte IDs (`ch-label-N`, `ch-amount-N`), die auch nach Hinzufügen und
+  Löschen eindeutig bleiben.
+- **Dokument hatte genau eine Überschrift.** Die Sektionstitel waren `<span>`; damit
+  gab es keine Gliederung zum Navigieren. Jetzt `<h2>`, und jede `<section>` ist über
+  `aria-labelledby` benannt, wird also zum Landmark. Die Ziffernmarke (01–04) ist
+  `aria-hidden`, sie ist reine Dekoration.
+- **Neuberechnung war für Screenreader unsichtbar.** Das Ergebnis änderte sich still.
+  Neu: eine visuell versteckte Live-Region (`role="status"`) mit einer Kurzfassung –
+  empfohlenes Szenario, Aufteilung, genutzt/verpufft. Bewusst nicht die Ergebnis-Container
+  selbst live geschaltet: die würden bei jedem Tastendruck komplett vorgelesen. Die
+  Ansage ist bis zur Tipp-Pause entprellt (700 ms).
+
 ## [1.1.0] — 2026-07-27
 
 ### Behoben
