@@ -2,6 +2,21 @@
 
 Alle nennenswerten Änderungen. Format lose nach Keep-a-Changelog.
 
+## [1.2.1] — 2026-07-27
+
+### Behoben
+- **Geburtsdatum lässt sich wieder tippen.** `input[type=date]` bietet auf iOS
+  ausschließlich den Kalender ohne Tastatureingabe – für ein Geburtsdatum von 2018
+  wären das rund hundert Tipps auf den Zurück-Pfeil. Jetzt ein Textfeld mit
+  `inputmode="numeric"`, das **TT.MM.JJJJ** (auch mit `/` oder `-`), **TTMMJJJJ** und
+  **JJJJ-MM-TT** erkennt und beim Verlassen des Feldes auf TT.MM.JJJJ normalisiert.
+  Während des Tippens wird nicht umgeschrieben, sonst verspringt der Cursor.
+  Zweistellige Jahre werden bewusst abgelehnt – das Jahrhundert zu raten geht bei
+  Geburtsdaten schief. Unplausible Eingaben (31.02., 13.13.) sagen es explizit.
+- **Mobile Reihenfolge in der Kind-Zeile.** Der Löschen-Button spannt unter 480 px über
+  die ganze Breite und stand als Balken zwischen dem Datumsfeld und dessen Ergebnis.
+  Jetzt Feld → Ergebnis → Löschen (`order` im Media-Query).
+
 ## [1.2.0] — 2026-07-27
 
 ### Neu
