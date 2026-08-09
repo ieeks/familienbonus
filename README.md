@@ -15,6 +15,9 @@ der ab **2027** geltenden Aufteilungspflicht (25:75 / 50:50).
 - **Steuerjahr** wählbar: 2024, 2025 oder 2026 (eigene Tarifstufen je Jahr).
 - Eingabe je Elternteil: **steuerpflichtiges Jahreseinkommen (Tarif)** → Tarifsteuer
   wird berechnet; alternativ **Tarifsteuer direkt** eingeben (am genauesten, wenn vom L16 bekannt).
+- Eingabehilfen: das Einkommen bekommt beim Tippen **Tausenderpunkte** (55000 → 55.000),
+  das Geburtsdatum die **Punkte automatisch** (27072018 → 27.07.2018) – auf der
+  iOS-Zifferntastatur gibt es keinen Punkt.
 - Beliebig viele Kinder, wahlweise per **Geburtsdatum** (tippbar als TT.MM.JJJJ, monatsgenau: 166,68 € bis
   einschließlich des Monats des 18. Geburtstags, danach 58,34 € mit Familienbeihilfe)
   oder pauschal mit 2.000 € / 700 € pro Jahr.
