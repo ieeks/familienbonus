@@ -156,7 +156,7 @@
       </div>
       <div class="field">
         <label id="labA" for="valA">Steuerpfl. Jahreseinkommen (Tarif)</label>
-        <input type="number" id="valA" inputmode="numeric" placeholder="z. B. 55000">
+        <input type="text" id="valA" inputmode="numeric" autocomplete="off" placeholder="z. B. 55.000">
       </div>
     </div>
     <div>
@@ -166,7 +166,7 @@
       </div>
       <div class="field">
         <label id="labB" for="valB">Steuerpfl. Jahreseinkommen (Tarif)</label>
-        <input type="number" id="valB" inputmode="numeric" placeholder="z. B. 32000">
+        <input type="text" id="valB" inputmode="numeric" autocomplete="off" placeholder="z. B. 32.000">
       </div>
     </div>
   </div>
@@ -275,6 +275,60 @@
   const ESC = {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"};
   const esc = s => String(s).replace(/[&<>"']/g, c => ESC[c]);
 
+  // --- Eingabemasken ---
+  // Beide Masken schreiben das Feld während des Tippens um. Der Cursor wird dabei
+  // an der Anzahl der Ziffern links von ihm verankert und danach neu gesetzt –
+  // ohne das springt er bei jedem eingefügten Trennzeichen ans Feldende.
+  const digitsOf = s => String(s==null?"":s).replace(/\D/g,"");
+  const hasDigits = s => digitsOf(s) !== "";
+  const amountVal = s => { const d = digitsOf(s); return d ? +d : 0; };
+  const groupDigits = d => d.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+
+  function setCaretAfterDigits(el, text, n){
+    let seen = 0, i = 0;
+    for(; i < text.length && seen < n; i++) if(text.charCodeAt(i) >= 48 && text.charCodeAt(i) <= 57) seen++;
+    try { el.setSelectionRange(i, i); } catch(e){}
+  }
+
+  // Beträge: Tausenderpunkte schon beim Tippen. Dafür type=text statt type=number –
+  // in einem Zahlenfeld wäre "55.000" ein ungültiger Wert und .value käme leer
+  // zurück. inputmode=numeric hält den Ziffernblock auf iOS.
+  function maskAmount(el){
+    const pos = el.selectionStart == null ? el.value.length : el.selectionStart;
+    let d = digitsOf(el.value).slice(0,9);            // 9 Stellen reichen für jedes Einkommen
+    let before = Math.min(digitsOf(el.value.slice(0,pos)).length, d.length);
+    const lead = (d.match(/^0+(?=\d)/) || [""])[0].length;   // "055000" gruppiert sonst als "055.000"
+    if(lead){ d = d.slice(lead); before = Math.max(0, before - lead); }
+    const out = groupDigits(d);
+    if(out === el.value) return;
+    el.value = out;
+    setCaretAfterDigits(el, out, before);
+  }
+
+  // Geburtsdatum: Punkte nach Tag und Monat automatisch. Nur zwischen die Gruppen,
+  // nie als Anhängsel – ein Punkt am Ende ("27.") käme nach jedem Backspace sofort
+  // zurück und das Feld ließe sich nicht mehr leeren.
+  // Backspace direkt auf einen Punkt löscht die Ziffer davor mit, sonst hängt der
+  // Cursor am Trennzeichen fest.
+  function maskBirth(el, prevValue, isBackspace){
+    if(/^\d{4}-\d{1,2}-\d{1,2}$/.test(el.value.trim())) return;   // eingefügtes ISO-Datum durchlassen
+    const pos = el.selectionStart == null ? el.value.length : el.selectionStart;
+    let before = digitsOf(el.value.slice(0,pos)).length;
+    let d = digitsOf(el.value);
+    if(isBackspace && before > 0 && d.length === digitsOf(prevValue).length){
+      d = d.slice(0, before-1) + d.slice(before);
+      before--;
+    }
+    d = d.slice(0,8);
+    before = Math.min(before, d.length);
+    let out = d.slice(0,2);
+    if(d.length > 2) out += "." + d.slice(2,4);
+    if(d.length > 4) out += "." + d.slice(4,8);
+    if(out === el.value) return;
+    el.value = out;
+    setCaretAfterDigits(el, out, before);
+  }
+
   // --- Geburtsdatum → Monate → Betrag ---
   // Alles in absoluten Monatsindizes (Jahr*12 + Monat), das macht die Vergleiche
   // über Jahresgrenzen hinweg trivial.
@@ -367,9 +421,15 @@
 
   function calcSummary(c){
     const b = parseBirth(c.birth);
-    if(!b) return String(c.birth||"").trim()
-      ? `<span class="warn">Datum nicht erkannt – als <b>TT.MM.JJJJ</b> eingeben, z. B. 27.07.2018.</span>`
-      : `Geburtsdatum eintragen – daraus rechne ich den Monatsanteil für ${taxYear}.`;
+    if(!b){
+      const raw = String(c.birth||"").trim();
+      if(!raw) return `Geburtsdatum eintragen – daraus rechne ich den Monatsanteil für ${taxYear}.`;
+      // Während des Tippens ist das Datum zwangsläufig unvollständig – die rote
+      // Warnung erst zeigen, wenn alle acht Ziffern da sind.
+      return digitsOf(raw).length < 8
+        ? `Weiter tippen – <b>TT.MM.JJJJ</b>, z. B. 27.07.2018.`
+        : `<span class="warn">Datum nicht erkannt – als <b>TT.MM.JJJJ</b> eingeben, z. B. 27.07.2018.</span>`;
+    }
     const r = childYearAmount(c, taxYear);
     if(r.amount < 0.005){
       return b.y > taxYear
@@ -433,6 +493,9 @@
   childBox.addEventListener("input", e=>{
     const el = e.target, k = el.dataset.k, i = +el.dataset.i;
     if(!k || !Number.isInteger(i) || !children[i]) return;
+    // children[i].birth hält hier noch den Stand vor dem Tastendruck – genau das
+    // braucht maskBirth(), um ein gelöschtes Trennzeichen zu erkennen.
+    if(k==="birth") maskBirth(el, children[i].birth, e.inputType === "deleteContentBackward");
     children[i][k] = k==="amount"   ? +el.value
                    : k==="beihilfe" ?  el.checked
                    :                   el.value;
@@ -524,7 +587,7 @@
 
   function compute(){
     const nA=$("nameA").value||"Elternteil A", nB=$("nameB").value||"Elternteil B";
-    const cA=ceilingFor(+$("valA").value), cB=ceilingFor(+$("valB").value);
+    const cA=ceilingFor(amountVal($("valA").value)), cB=ceilingFor(amountVal($("valB").value));
     const amounts=children.map(amountFor);
     const total=amounts.reduce((a,b)=>a+b,0);
 
@@ -533,7 +596,7 @@
       <div class="ceil">
         <div class="who">${esc(nm)}</div>
         <div class="big num">${eur(c)}</div>
-        <div class="cap">${inputMode==="tax"?"eingegebene Tarifsteuer":"Tarifsteuer "+taxYear+" aus "+(raw?eur(+raw):"–")}<br>= max. nutzbarer Bonus</div>
+        <div class="cap">${inputMode==="tax"?"eingegebene Tarifsteuer":"Tarifsteuer "+taxYear+" aus "+(hasDigits(raw)?eur(amountVal(raw)):"–")}<br>= max. nutzbarer Bonus</div>
       </div>`).join("");
 
     // canonical scenarios
@@ -583,7 +646,7 @@
       msg = childMode==="birth"
         ? `<b>Trag die Geburtsdaten der Kinder ein.</b> Daraus ergibt sich der Bonus je Kind für ${taxYear}.`
         : `<b>Kein Bonus zu verteilen.</b> Prüf die Beträge je Kind.`;
-    } else if(!$("valA").value && !$("valB").value){
+    } else if(!hasDigits($("valA").value) && !hasDigits($("valB").value)){
       msg = `<b>Trag oben eure Zahlen ein.</b> Ohne Eingabe kann ich die Aufnahmefähigkeit nicht bestimmen.`;
     } else if(best.wasted < EPS){
       // Gleichwertig ist jede Aufteilung nur, wenn auch die für einen Elternteil
@@ -613,7 +676,7 @@
 
     // Kurzfassung für die Sprachausgabe (siehe announce()).
     let liveText = "";
-    if($("valA").value || $("valB").value){
+    if(hasDigits($("valA").value) || hasDigits($("valB").value)){
       const uniform = bestR.fractions.every(f => f === bestR.fractions[0]);
       const pA = Math.round(bestR.fractions[0]*100);
       const wie = uniform ? `${nA} ${pA} Prozent, ${nB} ${100-pA} Prozent`
@@ -651,15 +714,15 @@
   function refreshLabels(){
     const inc = inputMode==="income";
     $("labA").textContent = $("labB").textContent = inc ? "Steuerpfl. Jahreseinkommen (Tarif)" : "Tarifsteuer / Jahr";
-    $("valA").placeholder = inc ? "z. B. 55000" : "z. B. 11500";
-    $("valB").placeholder = inc ? "z. B. 32000" : "z. B. 4200";
+    $("valA").placeholder = inc ? "z. B. 55.000" : "z. B. 11.500";
+    $("valB").placeholder = inc ? "z. B. 32.000" : "z. B. 4.200";
     $("modeHint").innerHTML = inc
       ? 'Am L16 ≈ <b>KZ 245</b> (steuerpflichtige laufende Bezüge, ohne 13./14.). Ich rechne daraus die Tarifsteuer nach den Stufen '+taxYear+'.'
       : 'Wenn du die Tarifsteuer auf die laufenden Bezüge schon kennst, gib sie direkt ein – das ist am genauesten.';
     $("eyebrow").textContent = "§ 33 EStG · Kalenderjahr " + taxYear;
     $("footYear").textContent = "Tarif " + taxYear;
     $("childModeHint").innerHTML = childMode==="birth"
-      ? `Als <b>TT.MM.JJJJ</b> eintippen (27.07.2018), <b>27072018</b> geht auch. Daraus rechne ich den
+      ? `Einfach <b>27072018</b> tippen – die Punkte setze ich. Daraus rechne ich den
          Monatsanteil für ${taxYear}: <b>${eur2(FB_M_U18)}</b> pro Monat bis einschließlich des Monats,
          in dem das Kind 18 wird, danach <b>${eur2(FB_M_O18)}</b> – solange Familienbeihilfe bezogen wird.`
       : `Pauschal ${eur(FB_U18)} bzw. ${eur(FB_O18)} pro Jahr. Im Jahr des 18. Geburtstags stimmt beides nicht
@@ -713,7 +776,8 @@
     children.push({label:"Kind "+(++childSeq), amount:FB_U18, birth:"", beihilfe:true});
     renderChildren(); compute();
   });
-  ["nameA","nameB","valA","valB"].forEach(id=>$(id).addEventListener("input",compute));
+  ["nameA","nameB"].forEach(id=>$(id).addEventListener("input",compute));
+  ["valA","valB"].forEach(id=>$(id).addEventListener("input",e=>{ maskAmount(e.target); compute(); }));
 
   refreshLabels();
   renderChildren();

@@ -29,9 +29,22 @@
       für österreichische Eltern. Single-file bleibt möglich (Font-Dateien danebenlegen).
 - [ ] **Alleinerzieher-/Alleinverdienerfall**: behalten ab 2027 100 %, wird derzeit nicht
       modelliert (nur als Hinweis erwähnt).
-- [ ] Number-Inputs ohne `min="0"`/`step`; Mausrad verstellt Werte unbemerkt.
+- [x] Number-Inputs ohne `min="0"`/`step`; Mausrad verstellt Werte unbemerkt.
+      Erledigt mit den Eingabemasken: die Einkommensfelder sind jetzt Textfelder mit
+      `inputmode="numeric"`, negative Werte und Mausrad-Änderungen gibt es damit nicht mehr.
 - [ ] Doppeltes `<link rel="icon">` – die Data-URI gewinnt, `icon.svg` wird nie geladen.
 - [ ] `meta description` / Open-Graph fehlen.
+
+## Eingabe / Masken
+- [x] **Tausenderpunkte im Einkommensfeld** und **automatische Punkte im Geburtsdatum**
+      (beides live beim Tippen, Cursor bleibt stehen).
+- [ ] **Nachkommastellen bei „Tarifsteuer direkt"**: Die Maske lässt nur Ziffern durch,
+      Cent gehen also verloren. Für die Anzeige irrelevant (`eur()` rundet ohnehin auf
+      volle Euro), für die Optimierung ebenfalls – falls es doch einmal stört, müsste
+      `maskAmount()` ein einzelnes Dezimalkomma zulassen.
+- [ ] **ISO-Datum tippen** geht nicht mehr (nur noch einfügen) – die Maske faltet jede
+      Ziffernfolge nach TT.MM.JJJJ. Bewusst so; falls es jemand vermisst, bräuchte es
+      eine Erkennung „vier Ziffern zuerst = Jahr".
 
 ## Später
 - [ ] Zustand in URL kodieren (teilbarer Link, kein localStorage nötig).

@@ -34,8 +34,25 @@ UI-Sprache: **Deutsch**. Kein Build-Step, keine Frameworks – gesamter Code in 
   die Zeilen der Tabelle je Kind nicht auf den Gesamtbetrag.
 - Geburtsdatum ist ein **Textfeld**, kein `input[type=date]`: iOS bietet dort nur den
   Kalender ohne Tastatureingabe. `parseBirth()` nimmt TT.MM.JJJJ, TTMMJJJJ und JJJJ-MM-TT,
-  normalisiert erst im `change`-Handler (während des Tippens verspringt sonst der Cursor).
+  `fmtBirth()` normalisiert im `change`-Handler.
   Zweistellige Jahre bleiben abgelehnt – Jahrhundert raten geht bei Geburtsdaten schief.
+- **Eingabemasken** (`maskAmount()`, `maskBirth()`, gemeinsam `setCaretAfterDigits()`):
+  Einkommen bekommt Tausenderpunkte, das Geburtsdatum die Punkte nach Tag und Monat –
+  beides live beim Tippen. Die iOS-Zifferntastatur hat keinen Punkt, ohne die Maske ist
+  das Datumsfeld auf Mobile praktisch nur als Ziffernfolge befüllbar.
+  - Die Einkommensfelder sind deshalb `type="text"` + `inputmode="numeric"`. **Nicht auf
+    `type="number"` zurückdrehen**: dort wäre „55.000" ein ungültiger Wert und `.value`
+    käme leer zurück. Gelesen wird über `amountVal()`, auf „leer" prüft `hasDigits()` –
+    `+el.value` ist bei „55.000" `NaN`.
+  - Beide Masken verankern den Cursor an der Anzahl Ziffern links von ihm. Wer das
+    wegoptimiert, bekommt den Sprung ans Feldende zurück, wegen dem in 1.2.1 während
+    des Tippens gar nicht umgeschrieben wurde.
+  - Der Datumspunkt steht **nur zwischen Gruppen, nie am Ende**. Ein angehängter Punkt
+    („27.") kommt nach jedem Backspace sofort zurück – das Feld wäre nicht mehr leerbar.
+    Backspace auf einem Punkt nimmt die Ziffer davor mit; erkannt wird das daran, dass
+    `children[i].birth` im `input`-Handler noch den Stand vor dem Tastendruck hält.
+  - Eingefügte ISO-Daten (`2018-07-27`) lässt `maskBirth()` unangetastet durch, sonst
+    würde `parseBirth()` sie nie zu sehen bekommen. Getippt wird ISO nicht mehr erkannt.
 - Aufteilungsregel: `splitMode` = `auto` (Default) | `free` | `restricted`; `effSplit()` löst
   `auto` aus `taxYear` + `ruleForYear()` auf. Datumsvergleiche laufen über Schlüssel `JJJJMMTT`
   (`key4`), **nicht** über `Date`-Objekte – sonst verschiebt die Zeitzone die Tagesgrenze.
@@ -92,6 +109,11 @@ UI-Sprache: **Deutsch**. Kein Build-Step, keine Frameworks – gesamter Code in 
 - Einkommen B=8.000 (< Steuergrenze) → Ceiling B = 0, Bonus muss auf A wandern.
 - Modus „ab 2027" → keine 100/0-Szenarien mehr, nur 25:75 / 50:50.
 - Jahr umschalten bei A=55.000 → 13.904 (2024) / 13.593 (2025) / 13.447 (2026).
+- `55000` ins Einkommensfeld tippen → im Feld steht `55.000`, Ceiling 13.593.
+  Ziffer vorne einfügen → Cursor bleibt hinter der eingefügten Ziffer.
+- `27072018` ins Datumsfeld tippen → `27.07.2018`, ohne dass ein Punkt getippt wurde.
+  Backspace bis zum Ende: das Feld wird wirklich leer, hängt nicht bei „27." fest.
+  Nach der ersten Ziffer steht „Weiter tippen", nicht die rote Warnung.
 - Tarifsteuer-Modus, cA=850, cB=9.000, Kinder 2.000 + 700, ab 2027 → Empfehlung ist
   gemischt (Kind 1 = 25:75, Kind 2 = 50:50); Kopfzeile darf keinen Mittelwert zeigen.
 - `<img src=x onerror=alert(1)>` als Name → erscheint als Text, kein Element im DOM.

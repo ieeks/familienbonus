@@ -2,6 +2,34 @@
 
 Alle nennenswerten Änderungen. Format lose nach Keep-a-Changelog.
 
+## [1.2.2] — 2026-08-09
+
+### Verbessert
+- **Tausenderpunkte im Einkommensfeld, schon beim Tippen.** Aus `55000` wird `55.000`,
+  während getippt wird. Dafür sind die beiden Felder jetzt `type="text"` mit
+  `inputmode="numeric"` statt `type="number"` – in einem Zahlenfeld wäre „55.000" ein
+  ungültiger Wert und `.value` käme leer zurück. Der Ziffernblock auf iOS bleibt.
+  Gelesen wird über `amountVal()` (Ziffern raus, Rest weg), leere Eingabe erkennt
+  `hasDigits()` – `+"55.000"` wäre `NaN` gewesen.
+- **Punkte im Geburtsdatum setzt der Rechner selbst.** `27072018` wird beim Tippen zu
+  `27.07.2018`; auf der iOS-Zifferntastatur gibt es keinen Punkt, das Feld war damit
+  praktisch nur über die Ziffernfolge befüllbar. Der Punkt erscheint immer nur
+  *zwischen* zwei Gruppen, nie am Ende – ein angehängter Punkt („27.") käme nach jedem
+  Backspace sofort zurück und das Feld ließe sich nicht mehr leeren. Backspace direkt
+  auf einem Punkt löscht die Ziffer davor mit. Eingefügte ISO-Daten (`2018-07-27`)
+  laufen an der Maske vorbei und werden weiterhin erkannt.
+- **Cursor bleibt stehen.** Beide Masken schreiben das Feld während des Tippens um und
+  verankern den Cursor an der Anzahl der Ziffern links von ihm (`setCaretAfterDigits()`).
+  Ohne das springt er bei jedem eingefügten Trennzeichen ans Feldende – genau der Grund,
+  aus dem in 1.2.1 gar nicht umgeschrieben wurde.
+- **„Datum nicht erkannt" erst, wenn es etwas zu erkennen gibt.** Die rote Warnung
+  erschien schon nach der ersten getippten Ziffer. Jetzt steht bis zur achten Ziffer
+  „Weiter tippen", danach erst die Warnung.
+
+### Behoben
+- Mausrad über einem fokussierten Einkommensfeld verstellte den Wert unbemerkt
+  (`type="number"`); mit dem Textfeld entfällt das.
+
 ## [1.2.1] — 2026-07-27
 
 ### Behoben
