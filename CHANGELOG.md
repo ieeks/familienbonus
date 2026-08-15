@@ -2,6 +2,36 @@
 
 Alle nennenswerten Änderungen. Format lose nach Keep-a-Changelog.
 
+## [1.3.0] — 2026-08-09
+
+### Neu
+- **Teilbarer Link.** „Link zum Teilen kopieren" packt den gesamten Stand (Namen,
+  Einkommen, Steuerjahr, Modi, Kinder mit Geburtsdatum und Beihilfe-Häkchen) in den
+  **Hash** der URL. Bewusst der Hash und nicht der Query-String: der Teil hinter `#`
+  wird nie an einen Server geschickt und steht in keinem Referer – bei Einkommensdaten
+  ist das der Unterschied zwischen „teilbar" und „in fremden Logs". Wo die Clipboard-API
+  nicht darf (kein sicherer Kontext, `file://`), erscheint der Link in einem Feld zum
+  Selberkopieren statt wortlos nichts zu tun.
+- **Eingaben bleiben erhalten.** Der Stand wird entprellt in `localStorage` gesichert und
+  beim nächsten Öffnen wiederhergestellt; ein Reload kostet die Eingabe nicht mehr.
+  Reihenfolge beim Start: erst der Link (den hat jemand absichtlich geöffnet), sonst der
+  gespeicherte Stand. **„Zurücksetzen"** löscht beides – mit Rückfrage, weil unwiderruflich.
+- **Ein zweiter Link im selben Tab** wechselt nur den Hash und löst kein Neuladen aus;
+  ein `hashchange`-Listener zieht Eingaben und Segmented-Controls nach.
+- `meta description`, Open-Graph- und Twitter-Card-Tags – der geteilte Link zeigt in
+  Messengern jetzt Titel und Beschreibung statt einer nackten URL.
+
+### Behoben
+- **Doppeltes `<link rel="icon">`**: Bei zwei Icon-Links gewinnt der letzte, `icon.svg`
+  wurde nie geladen. Jetzt nur noch der Verweis auf die Datei.
+
+### Sicherheit
+- Ein Link ist Fremdeingabe und wird auch so behandelt: Steuerjahr nur aus
+  `BRACKETS_BY_YEAR`, Modi nur aus der erlaubten Liste, Beträge je Kind nur die beiden
+  Stufen des Selects, Namen auf 40 Zeichen gekappt. Die Kinderzahl aus einem Link ist auf
+  **12** begrenzt – `bestSplit()` ist 3^n, ein Link mit 30 Kindern wäre sonst ein
+  Denial-of-Service auf den Browser des Empfängers.
+
 ## [1.2.2] — 2026-08-09
 
 ### Verbessert

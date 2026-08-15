@@ -32,8 +32,8 @@
 - [x] Number-Inputs ohne `min="0"`/`step`; Mausrad verstellt Werte unbemerkt.
       Erledigt mit den Eingabemasken: die Einkommensfelder sind jetzt Textfelder mit
       `inputmode="numeric"`, negative Werte und Mausrad-Änderungen gibt es damit nicht mehr.
-- [ ] Doppeltes `<link rel="icon">` – die Data-URI gewinnt, `icon.svg` wird nie geladen.
-- [ ] `meta description` / Open-Graph fehlen.
+- [x] Doppeltes `<link rel="icon">` – die Data-URI gewinnt, `icon.svg` wird nie geladen.
+- [x] `meta description` / Open-Graph fehlen.
 
 ## Eingabe / Masken
 - [x] **Tausenderpunkte im Einkommensfeld** und **automatische Punkte im Geburtsdatum**
@@ -46,10 +46,21 @@
       Ziffernfolge nach TT.MM.JJJJ. Bewusst so; falls es jemand vermisst, bräuchte es
       eine Erkennung „vier Ziffern zuerst = Jahr".
 
+## Teilen / Zustand
+- [x] **Zustand in der URL kodieren** (teilbarer Link) – im **Hash**, nicht im
+      Query-String: der Hash geht an keinen Server und steht in keinem Referer.
+      Voraussetzung `esc()` überall war erfüllt, jeder Wert aus dem Link wird zusätzlich
+      gegen die erlaubten Werte geprüft.
+- [x] **`localStorage`-Autosave** plus „Zurücksetzen" mit Rückfrage.
+- [ ] **Link kürzen.** Zwei Kinder ergeben rund 150 Zeichen; mit vielen Kindern wird der
+      Link unhandlich. Defaults weglassen (Namen „Elternteil A/B", `im=income`,
+      `cm=birth`, `sm=auto`) wäre der einfache Teil, eine kompaktere Kind-Kodierung der
+      zweite. Erst angehen, wenn sich jemand daran stört – lesbar ist er jetzt.
+- [ ] **Versionsschlüssel beachten.** `STORE_KEY` endet auf `.v1`. Wenn sich das Format
+      ändert, neuen Schlüssel vergeben statt still fehlzuinterpretieren; für Links
+      dasselbe – `applyQuery()` ignoriert Unbekanntes, verliert es aber auch.
+
 ## Später
-- [ ] Zustand in URL kodieren (teilbarer Link, kein localStorage nötig).
-      **Vorher** sicherstellen, dass alle Ausgaben durch `esc()` laufen – sonst wird aus
-      dem behobenen Self-XSS eine per Link verschickbare.
 - [ ] Ergebnis als PDF/Print-Ansicht (an L16/Veranlagung angelehnt).
 - [ ] Dark-Mode (Tokens sind schon zentral in `:root`).
 - [ ] Kurzcheck Alleinverdiener-/Alleinerzieherabsetzbetrag einblenden.

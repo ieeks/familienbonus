@@ -92,6 +92,32 @@ UI-Sprache: **Deutsch**. Kein Build-Step, keine Frameworks – gesamter Code in 
   Kinder"-Features durch eine geschlossene Lösung ersetzen: gesucht ist die erreichbare
   Summe für A möglichst nahe am Intervall `[total-cB, cA]`.
 
+## Zustand: teilen und behalten
+
+- Eine Kodierung für beides: `buildQuery()` erzeugt einen `URLSearchParams`-String,
+  `applyQuery()` liest ihn. Derselbe String steht im URL-Hash **und** in `localStorage`
+  (`STORE_KEY`, endet auf `.v1` – Format ändern heißt neuen Schlüssel vergeben).
+- **Hash, nicht Query-String.** Der Teil hinter `#` wird nie an einen Server geschickt und
+  steht in keinem Referer. Bei Einkommensdaten ist das der ganze Punkt – nicht auf
+  `?`-Parameter umstellen.
+- Ein Kind = vier gleichnamige Parameter (`cn`/`cb`/`ca`/`ch`) an derselben Position,
+  gelesen über `getAll()`. Deshalb gibt es kein Trennzeichen innerhalb eines Wertes und
+  nichts zusätzlich zu escapen. Leere Werte bleiben als leerer Parameter stehen, sonst
+  verrutscht die Zuordnung.
+- **Ein Link ist Fremdeingabe.** `applyQuery()` prüft jeden Wert gegen die erlaubten
+  (Jahr nur aus `BRACKETS_BY_YEAR`, Modi nur aus ihrer Liste, Betrag je Kind nur die
+  beiden Stufen des Selects), kappt Texte auf `MAX_TEXT` und die Kinderzahl auf
+  `MAX_LINK_CHILDREN` (12). Die Obergrenze ist kein Schönheitsfehler: `bestSplit()` ist
+  3^n, ohne sie hängt ein fremder Link den Browser des Empfängers auf.
+- `syncSegs()` zieht `aria-pressed` der vier Segmented-Controls nach. Wer Zustand
+  einliest und das vergisst, bekommt eine Leiste, die etwas anderes anzeigt als der
+  Rechner rechnet.
+- Gespeichert wird entprellt am Ende von `compute()` – jede Änderung läuft dort durch,
+  ein Haken reicht. `localStorage` kann werfen (Privatmodus): alle Zugriffe in `try`.
+- Der Start liest **erst den Link, dann den Speicher** (wer einen Link öffnet, will den
+  Link sehen). `hashchange` fängt den Fall ab, dass im selben Tab ein zweiter Link
+  aufgerufen wird – das lädt die Seite nicht neu.
+
 ## Design-Tokens (in `:root`)
 
 - paper `#F2F1EC`, card `#FBFAF6`, ink `#17191C`, muted `#6B6E73`, line `#DED9CE`
@@ -117,6 +143,12 @@ UI-Sprache: **Deutsch**. Kein Build-Step, keine Frameworks – gesamter Code in 
 - Tarifsteuer-Modus, cA=850, cB=9.000, Kinder 2.000 + 700, ab 2027 → Empfehlung ist
   gemischt (Kind 1 = 25:75, Kind 2 = 50:50); Kopfzeile darf keinen Mittelwert zeigen.
 - `<img src=x onerror=alert(1)>` als Name → erscheint als Text, kein Element im DOM.
+- Werte eintragen → „Link zum Teilen kopieren" → Link in einem frischen Profil öffnen:
+  identischer Stand, Segmented-Controls stimmen mit der Rechnung überein.
+- Seite neu laden → Eingaben stehen noch da. „Zurücksetzen" (mit Rückfrage) → Defaults,
+  `localStorage` leer, Hash weg.
+- Link mit `#y=9999&ca=999999` und 40 Kindern → Jahr fällt auf den Default zurück,
+  Betrag auf 2.000 €, höchstens 12 Kinder, kein Hänger.
 
 ## Session-Konvention (wie RGR-Tool)
 
