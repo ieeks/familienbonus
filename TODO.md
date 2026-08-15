@@ -52,10 +52,15 @@
       Voraussetzung `esc()` überall war erfüllt, jeder Wert aus dem Link wird zusätzlich
       gegen die erlaubten Werte geprüft.
 - [x] **`localStorage`-Autosave** plus „Zurücksetzen" mit Rückfrage.
-- [ ] **Link kürzen.** Zwei Kinder ergeben rund 150 Zeichen; mit vielen Kindern wird der
-      Link unhandlich. Defaults weglassen (Namen „Elternteil A/B", `im=income`,
-      `cm=birth`, `sm=auto`) wäre der einfache Teil, eine kompaktere Kind-Kodierung der
-      zweite. Erst angehen, wenn sich jemand daran stört – lesbar ist er jetzt.
+- [x] **Link kürzen.** Erledigt, ohne Fremddienst: es steht nur noch im Link, was vom
+      Default abweicht, Geburtsdaten als reine Ziffern. Standardfall 194 → 78 Zeichen.
+- [ ] **QR-Code neben dem Teilen-Button** – für „von Handy zu Handy" der bessere
+      Shortener als jeder Dienst, offline erzeugbar. Kostet einen QR-Encoder
+      (Reed-Solomon, ~200 Zeilen) im File; erst machen, wenn es jemand vermisst.
+- [ ] **Externer Shortener bleibt draußen.** Ausdrücklich nicht gewollt: ein Dienst
+      müsste Einkommen, Namen und Geburtsdaten speichern und sähe jeden Aufruf – genau
+      das, was die Hash-Kodierung vermeidet. Ein API-Key wäre in einer öffentlichen
+      Single-File-Seite ohnehin nicht geheim zu halten.
 - [ ] **Versionsschlüssel beachten.** `STORE_KEY` endet auf `.v1`. Wenn sich das Format
       ändert, neuen Schlüssel vergeben statt still fehlzuinterpretieren; für Links
       dasselbe – `applyQuery()` ignoriert Unbekanntes, verliert es aber auch.

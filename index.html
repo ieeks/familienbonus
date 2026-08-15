@@ -788,30 +788,62 @@
   const MAX_TEXT = 40;            // Namen aus dem Link kappen, sonst wird die URL zur Waffe
   const MAX_LINK_CHILDREN = 12;   // bestSplit() ist 3^n – ein Link mit 30 Kindern legt den Browser lahm
 
+  // Die Defaults beim Laden festhalten statt sie zu notieren – so laufen sie nicht
+  // auseinander, wenn im HTML ein anderer Startwert steht. Alles, was dem Default
+  // entspricht, fehlt im Link; das ist der ganze Trick an seiner Kürze.
+  const DEF = {y:taxYear, im:inputMode, cm:childMode, sm:splitMode,
+               na:$("nameA").value, nb:$("nameB").value, kids:children.length};
+  const kidLabel = i => "Kind " + (i+1);
+
+  // Im Link steht das Datum als reine Ziffernfolge (27072018) – parseBirth() kennt das
+  // Format ohnehin, und es spart je Kind zwei Zeichen. Unlesbares bleibt, wie es ist:
+  // ein halb getippter Stand soll auch teilbar sein.
+  function birthToLink(s){
+    const b = parseBirth(s);
+    return b ? String(b.d).padStart(2,"0") + String(b.mo+1).padStart(2,"0") + b.y : String(s||"");
+  }
+  function birthFromLink(s){
+    const b = parseBirth(s);
+    return b ? fmtBirth(b) : String(s||"").slice(0,10);
+  }
+
   // Ein Kind = vier gleichnamige Parameter an derselben Position. Ein Trennzeichen
   // innerhalb eines Wertes gibt es damit nicht, also auch nichts zu escapen.
   function buildQuery(){
     const p = new URLSearchParams();
-    p.set("y", taxYear); p.set("im", inputMode); p.set("cm", childMode); p.set("sm", splitMode);
-    p.set("na", $("nameA").value.slice(0,MAX_TEXT));
-    p.set("nb", $("nameB").value.slice(0,MAX_TEXT));
-    p.set("a", digitsOf($("valA").value));
-    p.set("b", digitsOf($("valB").value));
-    children.forEach(c=>{
-      p.append("cn", String(c.label).slice(0,MAX_TEXT));
-      p.append("cb", c.birth || "");
-      p.append("ca", c.amount);
-      p.append("ch", c.beihilfe ? "1" : "0");
-    });
+    const put = (key, val, def) => { if(String(val) !== String(def)) p.set(key, val); };
+    put("y",  taxYear,   DEF.y);
+    put("im", inputMode, DEF.im);
+    put("cm", childMode, DEF.cm);
+    put("sm", splitMode, DEF.sm);
+    put("na", $("nameA").value.slice(0,MAX_TEXT), DEF.na);
+    put("nb", $("nameB").value.slice(0,MAX_TEXT), DEF.nb);
+    if(hasDigits($("valA").value)) p.set("a", digitsOf($("valA").value));
+    if(hasDigits($("valB").value)) p.set("b", digitsOf($("valB").value));
+    put("k", children.length, DEF.kids);
+    // Eine Kind-Spalte kommt nur mit, wenn mindestens ein Kind vom Default abweicht –
+    // dann aber vollständig. Lückenhaft ginge nicht: die Zuordnung läuft über die Position.
+    const col = (key, val, isDef) => {
+      if(children.every(isDef)) return;
+      children.forEach((c,i)=>p.append(key, val(c,i)));
+    };
+    col("cn", c => String(c.label).slice(0,MAX_TEXT), (c,i) => c.label === kidLabel(i));
+    col("cb", c => birthToLink(c.birth),              c     => !c.birth);
+    col("ca", c => c.amount,                          c     => +c.amount === FB_U18);
+    col("ch", c => c.beihilfe ? "1" : "0",            c     => c.beihilfe === true);
     return p.toString();
   }
 
   // Ein Link ist Fremdeingabe: jeder Wert wird gegen die erlaubten geprüft, nicht
   // übernommen. Texte landen ohnehin nur über esc() im DOM.
+  const LINK_KEYS = ["y","im","cm","sm","na","nb","a","b","k","cn","cb","ca","ch"];
+
   function applyQuery(q){
     let p;
     try { p = new URLSearchParams(q || ""); } catch(e){ return false; }
-    if(!p.has("y") && !p.has("a") && !p.has("cn")) return false;
+    // Mindestens ein bekannter Schlüssel muss vorkommen, sonst ist der Hash keiner von
+    // uns (z. B. ein Sprungziel) und darf den Stand nicht anfassen.
+    if(!LINK_KEYS.some(key => p.has(key))) return false;
 
     const pick = (key, allowed, cur) => allowed.indexOf(p.get(key)) >= 0 ? p.get(key) : cur;
     if(BRACKETS_BY_YEAR[+p.get("y")]) taxYear = +p.get("y");
@@ -823,16 +855,23 @@
     if(p.has("a"))  $("valA").value  = groupDigits(digitsOf(p.get("a")).slice(0,9));
     if(p.has("b"))  $("valB").value  = groupDigits(digitsOf(p.get("b")).slice(0,9));
 
+    // Fehlende Spalten sind kein Fehler, sondern der Normalfall: sie stehen für
+    // "alle Kinder auf Default". Die Anzahl kommt dann aus "k".
     const ns=p.getAll("cn"), bs=p.getAll("cb"), as=p.getAll("ca"), hs=p.getAll("ch");
-    const n = Math.min(Math.max(ns.length, bs.length, as.length), MAX_LINK_CHILDREN);
+    // "k" gewinnt, wenn es dasteht – aber nie unter der Zahl tatsächlich gelieferter
+    // Spalteneinträge, sonst schluckt ein falsches k vorhandene Kinder. Ohne "k"
+    // sagen die Spalten die Anzahl, und ohne beides bleibt es beim Default.
+    const cols = Math.max(ns.length, bs.length, as.length, hs.length);
+    const want = p.has("k") ? Math.max(+p.get("k") || 0, cols) : (cols || DEF.kids);
+    const n = Math.min(want, MAX_LINK_CHILDREN);
     if(n){
       children.length = 0;
       for(let i=0; i<n; i++){
         children.push({
-          label:    String(ns[i] == null ? "Kind "+(i+1) : ns[i]).slice(0,MAX_TEXT),
-          birth:    String(bs[i] || "").slice(0,10),
+          label:    (i < ns.length ? String(ns[i]) : kidLabel(i)).slice(0,MAX_TEXT),
+          birth:    i < bs.length ? birthFromLink(bs[i]) : "",
           amount:   +as[i] === FB_O18 ? FB_O18 : FB_U18,   // nur die beiden Stufen aus dem Select
-          beihilfe: hs[i] !== "0"
+          beihilfe: i < hs.length ? hs[i] !== "0" : true
         });
       }
       childSeq = children.length;

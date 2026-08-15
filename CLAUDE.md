@@ -104,6 +104,22 @@ UI-Sprache: **Deutsch**. Kein Build-Step, keine Frameworks – gesamter Code in 
   gelesen über `getAll()`. Deshalb gibt es kein Trennzeichen innerhalb eines Wertes und
   nichts zusätzlich zu escapen. Leere Werte bleiben als leerer Parameter stehen, sonst
   verrutscht die Zuordnung.
+- **Im Link steht nur, was vom Default abweicht** (Standardfall 78 Zeichen inkl. Domain).
+  `DEF` wird beim Laden aus dem DOM und den Startwerten **ausgelesen**, nicht notiert –
+  wer im HTML einen anderen Startwert setzt, ändert damit automatisch mit, was im Link
+  weggelassen wird. Geburtsdaten stehen als reine Ziffernfolge (`birthToLink()` /
+  `birthFromLink()`).
+- Kind-Spalten sind **alles-oder-nichts**: weicht ein Kind ab, wird die Spalte für *alle*
+  Kinder geschrieben. Eine lückenhafte Spalte gibt es nicht, weil die Zuordnung an der
+  Position hängt. Fehlt eine Spalte, gilt für alle der Default.
+- Die Kinderzahl steht in `k` (nur wenn sie von `DEF.kids` abweicht). Beim Lesen gilt:
+  `k` gewinnt, aber nie unter der Zahl gelieferter Spalteneinträge – sonst schluckt ein
+  falsches `k` vorhandene Kinder. Ohne `k` sagen die Spalten die Anzahl.
+- `applyQuery()` verlangt mindestens einen Schlüssel aus `LINK_KEYS`, sonst fasst es den
+  Stand nicht an: ein Hash kann auch ein Sprungziel sein.
+- **Kein externer Shortener.** Ein Dienst müsste Einkommen, Namen und Geburtsdaten
+  speichern und sähe jeden Aufruf – das hebelt genau die Eigenschaft aus, für die der
+  Zustand im Hash steht. Wenn kürzer nötig ist: QR-Code, offline erzeugt.
 - **Ein Link ist Fremdeingabe.** `applyQuery()` prüft jeden Wert gegen die erlaubten
   (Jahr nur aus `BRACKETS_BY_YEAR`, Modi nur aus ihrer Liste, Betrag je Kind nur die
   beiden Stufen des Selects), kappt Texte auf `MAX_TEXT` und die Kinderzahl auf
@@ -149,6 +165,10 @@ UI-Sprache: **Deutsch**. Kein Build-Step, keine Frameworks – gesamter Code in 
   `localStorage` leer, Hash weg.
 - Link mit `#y=9999&ca=999999` und 40 Kindern → Jahr fällt auf den Default zurück,
   Betrag auf 2.000 €, höchstens 12 Kinder, kein Hänger.
+- Standardfall (nur Einkommen + zwei Geburtsdaten) ergibt exakt
+  `#a=55000&b=32000&cb=27072018&cb=11052022`. Link öffnen, erneut teilen → identischer
+  Link (Fixpunkt). Wer die Kodierung anfasst, prüft das zuerst.
+- `#sec-ergebnis` als Hash → der gespeicherte Stand bleibt stehen, keine Meldung.
 
 ## Session-Konvention (wie RGR-Tool)
 

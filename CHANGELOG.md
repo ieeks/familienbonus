@@ -18,6 +18,16 @@ Alle nennenswerten Änderungen. Format lose nach Keep-a-Changelog.
   gespeicherte Stand. **„Zurücksetzen"** löscht beides – mit Rückfrage, weil unwiderruflich.
 - **Ein zweiter Link im selben Tab** wechselt nur den Hash und löst kein Neuladen aus;
   ein `hashchange`-Listener zieht Eingaben und Segmented-Controls nach.
+- **Der Link enthält nur, was vom Default abweicht.** Steuerjahr, Modi, „Elternteil A/B",
+  die 2.000 € je Kind und das Beihilfe-Häkchen fehlen, solange sie unverändert sind; das
+  Geburtsdatum steht als reine Ziffernfolge (`27072018`), die `parseBirth()` ohnehin
+  kennt. Der typische Fall – zwei Einkommen, zwei Geburtsdaten – schrumpft damit von
+  **194 auf 78 Zeichen** inklusive Domain. Kein Shortener-Dienst nötig, und die Daten
+  bleiben da, wo sie hingehören. Kind-Spalten sind alles-oder-nichts: weicht ein Kind ab,
+  kommt die Spalte vollständig mit, sonst verrutscht die Zuordnung über die Position.
+  Die Kinderzahl steht als `k` im Link, sobald sie von der Startzahl abweicht.
+  Die Defaults werden beim Laden ausgelesen, nicht notiert – so laufen sie nicht
+  auseinander, wenn im HTML ein anderer Startwert steht.
 - `meta description`, Open-Graph- und Twitter-Card-Tags – der geteilte Link zeigt in
   Messengern jetzt Titel und Beschreibung statt einer nackten URL.
 
