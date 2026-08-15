@@ -24,6 +24,14 @@ der ab **2027** geltenden Aufteilungspflicht (25:75 / 50:50).
 - Zwei Modi: **freie Wahl** (bis 2026) und **Aufteilungspflicht ab 2027**.
 - Ergebnis: nutzbarer Bonus je Elternteil, verpuffter Rest, empfohlene Aufteilung – und
   die **Zuteilung je Kind**, also das, was tatsächlich ins Formular kommt.
+- **Teilbarer Link**: „Link zum Teilen kopieren" nimmt den kompletten Stand mit, damit ihn
+  der andere Elternteil öffnen kann. Die Werte stehen hinter dem `#` – dieser Teil einer
+  URL wird an keinen Server geschickt. Im Link steht nur, was vom Default abweicht, der
+  übliche Fall bleibt bei rund 80 Zeichen:
+  `…/familienbonus/#a=55000&b=32000&cb=27072018&cb=11052022`. Ein Shortener-Dienst ist
+  bewusst nicht eingebaut – der müsste die Daten speichern.
+- **Eingaben bleiben erhalten** (im Browser, `localStorage`); ein Reload kostet nichts.
+  „Zurücksetzen" löscht den gespeicherten Stand wieder.
 
 ## Rechenlogik (Kern)
 

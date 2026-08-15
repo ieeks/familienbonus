@@ -4,8 +4,14 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Familienbonus Plus – Aufteilungsrechner</title>
+<meta name="description" content="Rechner für die optimale Aufteilung des Familienbonus Plus zwischen zwei Elternteilen: zeigt, wie viel Bonus jeder nutzen kann, was sonst verpufft, und die Zuteilung je Kind für die Arbeitnehmerveranlagung.">
+<!-- Ein Icon-Link, nicht zwei: bei zwei gewinnt der letzte, der andere wird nie geladen. -->
 <link rel="icon" type="image/svg+xml" href="icon.svg">
-<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%230F5E5A' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 20V11l7-6 7 6v9Z'/%3E%3Cpath d='M10 20v-4h4v4'/%3E%3Ccircle cx='18' cy='6' r='3.1' fill='white'/%3E%3Cpath d='M18 4.5v3M16.5 6h3'/%3E%3C/svg%3E">
+<meta property="og:type" content="website">
+<meta property="og:title" content="Familienbonus Plus – Aufteilungsrechner">
+<meta property="og:description" content="Wie teilt ihr den Familienbonus Plus auf, damit möglichst wenig verpufft? Rechner für die Arbeitnehmerveranlagung.">
+<meta property="og:locale" content="de_AT">
+<meta name="twitter:card" content="summary">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Serif:ital,wght@0,400;0,600;1,400&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
@@ -81,6 +87,13 @@
   .add{font-family:"IBM Plex Sans",sans-serif; font-size:13px; font-weight:500; color:var(--primary);
     background:var(--primary-soft); border:1px solid transparent; border-radius:8px;
     padding:8px 12px; cursor:pointer}
+  .add.ghost{background:transparent; border-color:var(--line-strong); color:var(--muted)}
+
+  /* teilen / zurücksetzen */
+  .actions{display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin-top:16px}
+  .actions .msg{font-size:11.5px; color:var(--primary-ink)}
+  .share-out{margin-top:8px}
+  .share-out input{font-size:12px; padding:8px 10px}
 
   /* results */
   .ceilings{display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:16px}
@@ -218,6 +231,16 @@
   <div class="ceilings" id="ceilings"></div>
   <div id="scenarios"></div>
   <div class="note" id="dynNote"></div>
+  <div class="actions">
+    <button type="button" class="add" id="shareBtn">Link zum Teilen kopieren</button>
+    <button type="button" class="add ghost" id="resetBtn">Zurücksetzen</button>
+    <span class="msg" id="shareMsg" role="status" aria-live="polite"></span>
+  </div>
+  <div class="share-out" id="shareOut" hidden>
+    <label for="shareUrl">Link kopieren (der Browser lässt es hier nicht automatisch)</label>
+    <input type="text" id="shareUrl" readonly>
+  </div>
+  <p class="hint" id="storeHint"></p>
   <p class="sr-only" id="live" role="status" aria-live="polite" aria-atomic="true"></p>
 </section>
 
@@ -685,6 +708,7 @@
                + `Genutzt ${eur(bestR.used)} von ${eur(total)}, verpufft ${eur(bestR.wasted)}.`;
     }
     announce(liveText);
+    saveState();          // jede Änderung läuft durch compute() – ein Haken reicht
   }
 
   // tag: "best" (genau einmal pro Durchlauf), "equal" (gleich gut, aber nicht die
@@ -756,6 +780,140 @@
     return s;
   }
 
+  // --- Zustand: teilen und behalten ---
+  // Kodiert wird in den Hash, nicht in den Query-String: der Hash wird nie an einen
+  // Server geschickt und steht in keinem Referer. Bei Einkommensdaten ist das der
+  // Unterschied zwischen "teilbar" und "in fremden Logs".
+  const STORE_KEY = "familienbonus.state.v1";
+  const MAX_TEXT = 40;            // Namen aus dem Link kappen, sonst wird die URL zur Waffe
+  const MAX_LINK_CHILDREN = 12;   // bestSplit() ist 3^n – ein Link mit 30 Kindern legt den Browser lahm
+
+  // Die Defaults beim Laden festhalten statt sie zu notieren – so laufen sie nicht
+  // auseinander, wenn im HTML ein anderer Startwert steht. Alles, was dem Default
+  // entspricht, fehlt im Link; das ist der ganze Trick an seiner Kürze.
+  const DEF = {y:taxYear, im:inputMode, cm:childMode, sm:splitMode,
+               na:$("nameA").value, nb:$("nameB").value, kids:children.length};
+  const kidLabel = i => "Kind " + (i+1);
+
+  // Im Link steht das Datum als reine Ziffernfolge (27072018) – parseBirth() kennt das
+  // Format ohnehin, und es spart je Kind zwei Zeichen. Unlesbares bleibt, wie es ist:
+  // ein halb getippter Stand soll auch teilbar sein.
+  function birthToLink(s){
+    const b = parseBirth(s);
+    return b ? String(b.d).padStart(2,"0") + String(b.mo+1).padStart(2,"0") + b.y : String(s||"");
+  }
+  function birthFromLink(s){
+    const b = parseBirth(s);
+    return b ? fmtBirth(b) : String(s||"").slice(0,10);
+  }
+
+  // Ein Kind = vier gleichnamige Parameter an derselben Position. Ein Trennzeichen
+  // innerhalb eines Wertes gibt es damit nicht, also auch nichts zu escapen.
+  function buildQuery(){
+    const p = new URLSearchParams();
+    const put = (key, val, def) => { if(String(val) !== String(def)) p.set(key, val); };
+    put("y",  taxYear,   DEF.y);
+    put("im", inputMode, DEF.im);
+    put("cm", childMode, DEF.cm);
+    put("sm", splitMode, DEF.sm);
+    put("na", $("nameA").value.slice(0,MAX_TEXT), DEF.na);
+    put("nb", $("nameB").value.slice(0,MAX_TEXT), DEF.nb);
+    if(hasDigits($("valA").value)) p.set("a", digitsOf($("valA").value));
+    if(hasDigits($("valB").value)) p.set("b", digitsOf($("valB").value));
+    put("k", children.length, DEF.kids);
+    // Eine Kind-Spalte kommt nur mit, wenn mindestens ein Kind vom Default abweicht –
+    // dann aber vollständig. Lückenhaft ginge nicht: die Zuordnung läuft über die Position.
+    const col = (key, val, isDef) => {
+      if(children.every(isDef)) return;
+      children.forEach((c,i)=>p.append(key, val(c,i)));
+    };
+    col("cn", c => String(c.label).slice(0,MAX_TEXT), (c,i) => c.label === kidLabel(i));
+    col("cb", c => birthToLink(c.birth),              c     => !c.birth);
+    col("ca", c => c.amount,                          c     => +c.amount === FB_U18);
+    col("ch", c => c.beihilfe ? "1" : "0",            c     => c.beihilfe === true);
+    return p.toString();
+  }
+
+  // Ein Link ist Fremdeingabe: jeder Wert wird gegen die erlaubten geprüft, nicht
+  // übernommen. Texte landen ohnehin nur über esc() im DOM.
+  const LINK_KEYS = ["y","im","cm","sm","na","nb","a","b","k","cn","cb","ca","ch"];
+
+  function applyQuery(q){
+    let p;
+    try { p = new URLSearchParams(q || ""); } catch(e){ return false; }
+    // Mindestens ein bekannter Schlüssel muss vorkommen, sonst ist der Hash keiner von
+    // uns (z. B. ein Sprungziel) und darf den Stand nicht anfassen.
+    if(!LINK_KEYS.some(key => p.has(key))) return false;
+
+    const pick = (key, allowed, cur) => allowed.indexOf(p.get(key)) >= 0 ? p.get(key) : cur;
+    if(BRACKETS_BY_YEAR[+p.get("y")]) taxYear = +p.get("y");
+    inputMode = pick("im", ["income","tax"],            inputMode);
+    childMode = pick("cm", ["birth","amount"],          childMode);
+    splitMode = pick("sm", ["auto","free","restricted"], splitMode);
+    if(p.has("na")) $("nameA").value = p.get("na").slice(0,MAX_TEXT);
+    if(p.has("nb")) $("nameB").value = p.get("nb").slice(0,MAX_TEXT);
+    if(p.has("a"))  $("valA").value  = groupDigits(digitsOf(p.get("a")).slice(0,9));
+    if(p.has("b"))  $("valB").value  = groupDigits(digitsOf(p.get("b")).slice(0,9));
+
+    // Fehlende Spalten sind kein Fehler, sondern der Normalfall: sie stehen für
+    // "alle Kinder auf Default". Die Anzahl kommt dann aus "k".
+    const ns=p.getAll("cn"), bs=p.getAll("cb"), as=p.getAll("ca"), hs=p.getAll("ch");
+    // "k" gewinnt, wenn es dasteht – aber nie unter der Zahl tatsächlich gelieferter
+    // Spalteneinträge, sonst schluckt ein falsches k vorhandene Kinder. Ohne "k"
+    // sagen die Spalten die Anzahl, und ohne beides bleibt es beim Default.
+    const cols = Math.max(ns.length, bs.length, as.length, hs.length);
+    const want = p.has("k") ? Math.max(+p.get("k") || 0, cols) : (cols || DEF.kids);
+    const n = Math.min(want, MAX_LINK_CHILDREN);
+    if(n){
+      children.length = 0;
+      for(let i=0; i<n; i++){
+        children.push({
+          label:    (i < ns.length ? String(ns[i]) : kidLabel(i)).slice(0,MAX_TEXT),
+          birth:    i < bs.length ? birthFromLink(bs[i]) : "",
+          amount:   +as[i] === FB_O18 ? FB_O18 : FB_U18,   // nur die beiden Stufen aus dem Select
+          beihilfe: i < hs.length ? hs[i] !== "0" : true
+        });
+      }
+      childSeq = children.length;
+    }
+    syncSegs();
+    return true;
+  }
+
+  // Die Segmented-Controls tragen ihren Zustand in aria-pressed – nach dem Einlesen
+  // muss der nachgezogen werden, sonst zeigt die Leiste etwas anderes als der Rechner.
+  function syncSegs(){
+    const set = (id, key, val) => $(id).querySelectorAll("button")
+      .forEach(b => b.setAttribute("aria-pressed", String(b.dataset[key]) === String(val)));
+    set("taxYear","year",taxYear);   set("inputMode","mode",inputMode);
+    set("childMode","cmode",childMode); set("splitMode","split",splitMode);
+  }
+
+  // localStorage kann werfen (Privatmodus, abgeschaltete Cookies) – das ist kein Grund,
+  // den Rechner scheitern zu lassen.
+  const readStore = () => { try { return localStorage.getItem(STORE_KEY) || ""; } catch(e){ return ""; } };
+  let saveTimer = null;
+  function saveState(){
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(()=>{ try { localStorage.setItem(STORE_KEY, buildQuery()); } catch(e){} }, 400);
+  }
+
+  let flashTimer = null;
+  function flash(text){
+    $("shareMsg").textContent = text;
+    clearTimeout(flashTimer);
+    flashTimer = setTimeout(()=>{ $("shareMsg").textContent = ""; }, 5000);
+  }
+  const shareHref = () => location.href.split("#")[0] + "#" + buildQuery();
+
+  // Clipboard-API gibt es nur im sicheren Kontext – über file:// oder ohne Erlaubnis
+  // scheitert sie. Dann das Feld zum Selberkopieren, statt wortlos nichts zu tun.
+  function shareFallback(url){
+    const box = $("shareOut"), inp = $("shareUrl");
+    box.hidden = false; inp.value = url; inp.focus(); inp.select();
+    flash("Automatisches Kopieren ging nicht – Link steht unten.");
+  }
+
   function wireSeg(id, apply){
     const box = $(id);
     box.querySelectorAll("button").forEach(b=>{
@@ -779,9 +937,48 @@
   ["nameA","nameB"].forEach(id=>$(id).addEventListener("input",compute));
   ["valA","valB"].forEach(id=>$(id).addEventListener("input",e=>{ maskAmount(e.target); compute(); }));
 
+  $("shareBtn").addEventListener("click", ()=>{
+    const url = shareHref();
+    // Adressleiste und Zwischenablage sollen dasselbe zeigen. replaceState statt
+    // pushState: der Zurück-Button soll nicht durch Zwischenstände wandern.
+    try { history.replaceState(null, "", "#" + buildQuery()); } catch(e){}
+    if(navigator.clipboard && navigator.clipboard.writeText){
+      navigator.clipboard.writeText(url).then(
+        ()=>{ $("shareOut").hidden = true; flash("Link kopiert."); },
+        ()=>shareFallback(url));
+    } else {
+      shareFallback(url);
+    }
+  });
+
+  $("resetBtn").addEventListener("click", ()=>{
+    // Unwiderruflich: hier ist die Rückfrage die Mühe wert.
+    if(!confirm("Alle Eingaben löschen und von vorne beginnen?")) return;
+    try { localStorage.removeItem(STORE_KEY); } catch(e){}
+    try { history.replaceState(null, "", location.href.split("#")[0]); } catch(e){}
+    location.reload();
+  });
+
+  // Ein zweiter Link im selben Tab wechselt nur den Hash – ohne das hier bliebe der
+  // alte Stand stehen und nichts würde erklären, warum.
+  window.addEventListener("hashchange", ()=>{
+    if(!applyQuery(location.hash.slice(1))) return;
+    refreshLabels(); renderChildren(); compute();
+    flash("Werte aus dem Link übernommen.");
+  });
+
+  $("storeHint").innerHTML = `Die Eingaben bleiben in <b>diesem Browser</b> gespeichert – nichts wird
+    übertragen, „Zurücksetzen" löscht sie. Im Link stehen die Werte hinter dem <b>#</b>: dieser Teil
+    geht an keinen Server, landet aber im Verlauf desjenigen, der ihn öffnet.`;
+
+  // Reihenfolge: erst der Link (jemand hat ihn absichtlich geöffnet), sonst der
+  // gespeicherte Stand.
+  const fromLink = applyQuery(location.hash.slice(1));
+  if(!fromLink) applyQuery(readStore());
   refreshLabels();
   renderChildren();
   compute();
+  if(fromLink) flash("Werte aus dem Link übernommen.");
 })();
 </script>
 </body>
