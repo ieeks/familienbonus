@@ -10,17 +10,29 @@
       welchem Jahr die Pflicht greift.
 - [ ] **Übergangsjahr klären**: greift die Pflicht ab dem Monat des 4. Geburtstags oder
       erst im Folgejahr? Aus den Materialien nicht eindeutig, im Tool offen gelassen.
-      Klärt sich mit dem Gesetzestext (§ 33 Abs. 3a EStG i. d. F. BBG 2027–2028).
-- [ ] **Erhöhte Familienbeihilfe**: erhält ebenfalls die freie Wahl ab 2027, fehlt noch.
-- [ ] **Tarifstufen 2027** ergänzen, sobald kundgemacht. Bis dahin weist der Modus
+      Das Gesetz ist inzwischen kundgemacht (BGBl. I Nr. 62/2026) – der Volltext von
+      § 33 Abs. 3a EStG i. d. F. BBG 2027–2028 war aus dieser Session nicht abrufbar
+      (RIS/BMF vom Egress-Proxy geblockt), also im nächsten Durchgang direkt im RIS
+      nachlesen und die Frage endlich abhaken.
+- [x] **Erhöhte Familienbeihilfe**: erhält ebenfalls die freie Wahl ab 2027. Erledigt als
+      haushaltsbezogenes Häkchen (`erhFB`, `ef=1` im Link) – dasselbe Alles-oder-nichts
+      wie die Altersbedingung, weil die Ausnahme am Haushalt hängt.
+- [ ] **Tarifstufen 2027** ergänzen, sobald kundgemacht. Stand 20.08.2026 offen; die
+      Inflationsanpassungsverordnung fürs Folgejahr kommt üblicherweise Ende August
+      (die für 2026 am 30.08.2025), also demnächst nachsehen. Bis dahin weist der Modus
       „ab 2027" darauf hin, dass mit dem gewählten Jahr gerechnet wird.
+      **Wenn 2027 in `BRACKETS_BY_YEAR` und in die Leiste kommt:** `effSplit()` liefert
+      dann erstmals „restricted" aus `auto` – vorher die Übergangsjahr-Frage klären,
+      sonst entscheidet der Rechner still, was das Gesetz offenlässt.
 
 ## Aus dem Code-Review offen
-- [ ] **`bestSplit()` ist 3^n Brute Force** – 14 Kinder ≈ 0,8 s, und das bei jedem
-      Tastendruck. Geschlossene Lösung: die Verschwendung ist
-      `max(0, aSum−cA) + max(0, total−aSum−cB)` und wird für jedes `aSum` im Intervall
-      `[total−cB, cA]` minimal → erreichbare Summe suchen, die dem Intervall am nächsten
-      liegt (DP über erreichbare Summen statt Enumeration).
+- [~] **`bestSplit()` ist 3^n Brute Force** – gemessen: 12 Kinder ≈ 0,1 s, 14 ≈ 1,0 s,
+      15 ≈ 3,3 s, und das bei jedem Tastendruck. Vorerst entschärft durch
+      `MAX_CHILDREN` = 12 (Eingabe **und** Link). Für mehr Kinder braucht es die
+      geschlossene Lösung: die Verschwendung ist `max(0, aSum−cA) + max(0, total−aSum−cB)`
+      und wird für jedes `aSum` im Intervall `[total−cB, cA]` minimal → erreichbare Summe
+      suchen, die dem Intervall am nächsten liegt (DP über erreichbare Summen statt
+      Enumeration). Erst dann darf die Obergrenze wieder steigen.
 - [x] **Zahlenformat**: „13.593 €" statt „13 593 €" (`Intl.NumberFormat("de-DE")`).
 - [x] **`<label for>`** für alle Felder, inkl. indexbasierter IDs in den Kind-Zeilen.
 - [x] **Accessibility, Rest**: Sektionstitel als `<h2>`, Sections über `aria-labelledby`
@@ -28,7 +40,10 @@
 - [ ] **Google Fonts selbst hosten** – DSGVO, IP-Übertragung an Google bei einem Tool
       für österreichische Eltern. Single-file bleibt möglich (Font-Dateien danebenlegen).
 - [ ] **Alleinerzieher-/Alleinverdienerfall**: behalten ab 2027 100 %, wird derzeit nicht
-      modelliert (nur als Hinweis erwähnt).
+      modelliert (nur als Hinweis erwähnt). Im Modus „Pflicht ab 2027" bekäme ein
+      Alleinerzieher 25:75 vorgeschlagen, obwohl ihm 100 % zustehen – das Tool ist auf
+      zwei Berechtigte ausgelegt, sollte den Fall aber wenigstens erkennen (leerer
+      zweiter Elternteil → Hinweis statt Aufteilungsvorschlag).
 - [x] Number-Inputs ohne `min="0"`/`step`; Mausrad verstellt Werte unbemerkt.
       Erledigt mit den Eingabemasken: die Einkommensfelder sind jetzt Textfelder mit
       `inputmode="numeric"`, negative Werte und Mausrad-Änderungen gibt es damit nicht mehr.
@@ -38,6 +53,12 @@
 ## Eingabe / Masken
 - [x] **Tausenderpunkte im Einkommensfeld** und **automatische Punkte im Geburtsdatum**
       (beides live beim Tippen, Cursor bleibt stehen).
+- [x] **Backspace auf einem Trennzeichen** nimmt jetzt in beiden Masken die Ziffer davor
+      mit. Im Betragsfeld war der Tastendruck vorher wirkungslos.
+- [ ] **Einfügen mitten im Datum verliert die letzte Ziffer.** Die Maske faltet die
+      Ziffernfolge positionell: wer in „27.07.2018" vorne eine Ziffer einfügt, bekommt
+      „23.70.7201" – die 8 fällt hinten raus. Bei einer Positionsmaske systembedingt;
+      falls es stört, bräuchte es Einfügen als Überschreiben statt als Verschieben.
 - [ ] **Nachkommastellen bei „Tarifsteuer direkt"**: Die Maske lässt nur Ziffern durch,
       Cent gehen also verloren. Für die Anzeige irrelevant (`eur()` rundet ohnehin auf
       volle Euro), für die Optimierung ebenfalls – falls es doch einmal stört, müsste

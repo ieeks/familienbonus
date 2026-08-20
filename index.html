@@ -88,6 +88,7 @@
     background:var(--primary-soft); border:1px solid transparent; border-radius:8px;
     padding:8px 12px; cursor:pointer}
   .add.ghost{background:transparent; border-color:var(--line-strong); color:var(--muted)}
+  .add[disabled]{opacity:.4; cursor:not-allowed}
 
   /* teilen / zurücksetzen */
   .actions{display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin-top:16px}
@@ -211,6 +212,7 @@
   <p class="hint" id="childModeHint"></p>
   <div id="children" style="margin-top:14px"></div>
   <button type="button" class="add" id="addChild">+ Kind hinzufügen</button>
+  <p class="hint" id="childCountHint"></p>
 </section>
 
 <section aria-labelledby="sec-regel">
@@ -221,9 +223,15 @@
     <button type="button" data-split="restricted" aria-pressed="false">Pflicht ab 2027</button>
   </div>
   <p class="hint" id="splitHint"></p>
+  <label class="chk" for="erhFB" style="margin-top:10px">
+    <input type="checkbox" id="erhFB">
+    <span>Für ein Kind im Haushalt wird <b>erhöhte Familienbeihilfe</b> bezogen</span>
+  </label>
   <p class="hint">Ab 2027 fällt die freie 100/0-Wahl weg, sobald <b>alle</b> Kinder im Haushalt ≥ 4 Jahre sind –
-  dann nur noch 25:75 oder 50:50. Solange ein Kind unter 4 im Haushalt lebt, bleibt die freie Wahl bestehen;
-  Alleinerziehende behalten ohnehin 100 %.</p>
+  dann nur noch 25:75 oder 50:50. Solange ein Kind unter 4 im Haushalt lebt, bleibt die freie Wahl bestehen.
+  Ein Kind mit <b>erhöhter Familienbeihilfe</b> ist dabei einem Kind unter 4 gleichgestellt;
+  Alleinerziehende behalten ohnehin 100 %.
+  Rechtsgrundlage: Budgetbegleitgesetz 2027–2028, <b>BGBl. I Nr. 62/2026</b> (kundgemacht 29.07.2026).</p>
 </section>
 
 <section aria-labelledby="sec-ergebnis">
@@ -261,6 +269,9 @@
   let inputMode = "income";   // income | tax
   let childMode = "birth";    // birth | amount
   let splitMode = "auto";     // auto | free | restricted
+  // Haushaltsbezogen wie die Altersbedingung: ein Kind mit erhöhter Familienbeihilfe
+  // ist einem Kind unter 4 gleichgestellt, die freie Wahl bleibt dann für alle Kinder.
+  let erhFB = false;
   let children = [
     {label:"Kind 1", amount:FB_U18, birth:"", beihilfe:true},
     {label:"Kind 2", amount:FB_U18, birth:"", beihilfe:true},
@@ -316,10 +327,17 @@
   // Beträge: Tausenderpunkte schon beim Tippen. Dafür type=text statt type=number –
   // in einem Zahlenfeld wäre "55.000" ein ungültiger Wert und .value käme leer
   // zurück. inputmode=numeric hält den Ziffernblock auf iOS.
-  function maskAmount(el){
+  // Backspace direkt auf einem Tausenderpunkt nimmt – wie im Datumsfeld – die Ziffer
+  // davor mit. Ohne das ist der Tastendruck wirkungslos: die Maske setzt den Punkt
+  // sofort wieder, der Cursor rutscht nur eine Stelle nach links.
+  function maskAmount(el, prevValue, isBackspace){
     const pos = el.selectionStart == null ? el.value.length : el.selectionStart;
     let d = digitsOf(el.value).slice(0,9);            // 9 Stellen reichen für jedes Einkommen
     let before = Math.min(digitsOf(el.value.slice(0,pos)).length, d.length);
+    if(isBackspace && before > 0 && d.length === digitsOf(prevValue).length){
+      d = d.slice(0, before-1) + d.slice(before);
+      before--;
+    }
     const lead = (d.match(/^0+(?=\d)/) || [""])[0].length;   // "055000" gruppiert sonst als "055.000"
     if(lead){ d = d.slice(lead); before = Math.max(0, before - lead); }
     const out = groupDigits(d);
@@ -402,6 +420,9 @@
   // Die Ausnahme ist haushaltsbezogen – ein Kind unter 4 erhält allen Kindern die
   // freie Wahl. Damit ist die Regel alles-oder-nichts, nicht je Kind verschieden.
   function ruleForYear(year){
+    // Erhöhte Familienbeihilfe: das Kind ist einem unter 4 gleichgestellt, und weil die
+    // Ausnahme am Haushalt hängt, gilt die freie Wahl dann für alle Kinder.
+    if(erhFB) return {state:"free"};
     const bs = allBirths();
     if(bs.some(b=>!b)) return {state:"unknown"};
     const ks = bs.map(key4);
@@ -426,6 +447,9 @@
   function effSplit(){
     if(splitMode !== "auto") return splitMode;
     if(taxYear < 2027) return "free";
+    // Ohne Geburtsdaten ist die Altersbedingung nicht prüfbar – dann nicht raten.
+    // (c.birth bleibt im Pauschal-Modus stehen und wäre sonst ein stiller Altbestand.)
+    if(childMode !== "birth") return "free";
     return ruleForYear(taxYear).state === "restricted" ? "restricted" : "free";
   }
 
@@ -509,6 +533,12 @@
         ${childMode==="birth" ? childCalcRow(c,i) : ""}`;
       childBox.appendChild(row);
     });
+    const add = $("addChild");
+    add.disabled = children.length >= MAX_CHILDREN;
+    $("childCountHint").textContent = add.disabled
+      ? `Mehr als ${MAX_CHILDREN} Kinder rechnet dieses Werkzeug nicht – die Suche über alle `
+        + `Aufteilungen wächst mit 3 hoch Kinderzahl.`
+      : "";
   }
 
   // Delegiert statt je Element: die Rechenzeile wird zwischendurch ersetzt,
@@ -545,23 +575,32 @@
     const v = rawVal||0;
     return inputMode==="tax" ? Math.max(0,v) : tarifsteuer(v);
   }
+  // Der Anteil je Kind wird auf ganze Euro gerundet, der Rest geht an den anderen
+  // Elternteil. Erst dann wird summiert: sonst zeigt die Aufstellung je Kind bei
+  // 50/50 eines 667-€-Kindes "334 / 334" – also einen Euro mehr, als es zu verteilen
+  // gibt – und die Zeilensumme passt nicht zu "zugeteilt" auf derselben Karte.
+  const shareToA = (amt, f) => Math.round(amt*f);
   function evaluate(fractionsToA, amounts, cA, cB){
     let aSum=0, total=0;
-    amounts.forEach((amt,i)=>{ aSum += amt*fractionsToA[i]; total += amt; });
+    amounts.forEach((amt,i)=>{ aSum += shareToA(amt, fractionsToA[i]); total += amt; });
     const bSum = total - aSum;
     const used = Math.min(aSum,cA) + Math.min(bSum,cB);
     return {aSum,bSum,total,used,wasted:total-used,fractions:fractionsToA.slice()};
   }
   function bestSplit(amounts, cA, cB){
     const opts = effSplit()==="restricted" ? [0.25,0.5,0.75] : [0,0.5,1];
-    let best=null;
+    let best=null, maxUsed=-Infinity;
     const n=amounts.length, cur=new Array(n);
     (function rec(i){
       if(i===n){
         const r=evaluate(cur,amounts,cA,cB);
         const bal = Math.abs(r.aSum-r.bSum); // tie-break: more even
+        // Verglichen wird gegen das bisher gesehene Maximum, nicht gegen die aktuell
+        // markierte Aufteilung. Sonst senkt jeder angenommene Gleichstand die Latte um
+        // bis zu EPS, und über mehrere Schritte summiert sich der Abstand zum Optimum.
+        if(r.used > maxUsed) maxUsed = r.used;
         const better = !best || r.used > best.used + EPS;
-        const tie = best && Math.abs(r.used-best.used) <= EPS && bal < best._bal;
+        const tie = best && r.used >= maxUsed - EPS && bal < best._bal;
         if(better || tie){ best=r; best._bal=bal; }
         return;
       }
@@ -587,7 +626,7 @@
   function perChildTable(r, amounts, nA, nB){
     if(children.length < 2) return "";
     const rows = children.map((c,i)=>{
-      const f = r.fractions[i], a = amounts[i]*f, b = amounts[i]-a;
+      const f = r.fractions[i], a = shareToA(amounts[i], f), b = amounts[i]-a;
       return `<div class="pc-row">
         <span class="pc-name">${esc(c.label)}</span>
         <span class="pc-share num">${Math.round(f*100)} % / ${Math.round((1-f)*100)} %</span>
@@ -691,8 +730,9 @@
         (Negativsteuer, bis 700 €/Kind) – der greift genau dann, wenn kaum Tarifsteuer da ist.`;
     }
     if(effSplit()==="restricted"){
-      msg += `<br><br>Für 2027 sind die Tarifstufen noch nicht kundgemacht – gerechnet wird hier
-        mit den Stufen ${taxYear}.`;
+      msg += `<br><br>Die Aufteilungspflicht selbst steht fest (Budgetbegleitgesetz 2027–2028,
+        BGBl. I Nr. 62/2026). Die <b>Tarifstufen 2027</b> sind noch nicht kundgemacht –
+        gerechnet wird hier mit den Stufen ${taxYear}.`;
     }
     $("dynNote").innerHTML = msg;
     $("splitHint").innerHTML = splitHintText();   // hängt an Geburtsdaten und Steuerjahr
@@ -760,6 +800,10 @@
       ? `Automatisch für ${taxYear}: <b>${wie}</b>.`
       : `Manuell gesetzt: <b>${wie}</b>.`;
 
+    if(erhFB){
+      return `${kopf} Für ein Kind im Haushalt wird erhöhte Familienbeihilfe bezogen – es ist einem
+              Kind unter 4 gleichgestellt, die freie Wahl bleibt dem Haushalt also erhalten.`;
+    }
     if(childMode!=="birth" || allBirths().some(b=>!b)){
       return `${kopf} Ohne vollständige Geburtsdaten kann ich die Altersbedingung nicht prüfen –
               ab 2027 musst du den Modus selbst wählen.`;
@@ -786,7 +830,11 @@
   // Unterschied zwischen "teilbar" und "in fremden Logs".
   const STORE_KEY = "familienbonus.state.v1";
   const MAX_TEXT = 40;            // Namen aus dem Link kappen, sonst wird die URL zur Waffe
-  const MAX_LINK_CHILDREN = 12;   // bestSplit() ist 3^n – ein Link mit 30 Kindern legt den Browser lahm
+  // bestSplit() ist 3^n: 12 Kinder ≈ 0,1 s pro Tastendruck, 15 schon ≈ 3 s. Die Grenze
+  // gilt deshalb für die eigene Eingabe genauso wie für einen fremden Link – sonst
+  // hängt der Rechner am eigenen "+ Kind hinzufügen", und ein Stand mit mehr als
+  // MAX_CHILDREN Kindern ließe sich ohnehin nicht mehr unverfälscht teilen.
+  const MAX_CHILDREN = 12;
 
   // Die Defaults beim Laden festhalten statt sie zu notieren – so laufen sie nicht
   // auseinander, wenn im HTML ein anderer Startwert steht. Alles, was dem Default
@@ -816,6 +864,7 @@
     put("im", inputMode, DEF.im);
     put("cm", childMode, DEF.cm);
     put("sm", splitMode, DEF.sm);
+    put("ef", erhFB ? "1" : "0", "0");
     put("na", $("nameA").value.slice(0,MAX_TEXT), DEF.na);
     put("nb", $("nameB").value.slice(0,MAX_TEXT), DEF.nb);
     if(hasDigits($("valA").value)) p.set("a", digitsOf($("valA").value));
@@ -836,7 +885,7 @@
 
   // Ein Link ist Fremdeingabe: jeder Wert wird gegen die erlaubten geprüft, nicht
   // übernommen. Texte landen ohnehin nur über esc() im DOM.
-  const LINK_KEYS = ["y","im","cm","sm","na","nb","a","b","k","cn","cb","ca","ch"];
+  const LINK_KEYS = ["y","im","cm","sm","ef","na","nb","a","b","k","cn","cb","ca","ch"];
 
   function applyQuery(q){
     let p;
@@ -845,15 +894,19 @@
     // uns (z. B. ein Sprungziel) und darf den Stand nicht anfassen.
     if(!LINK_KEYS.some(key => p.has(key))) return false;
 
-    const pick = (key, allowed, cur) => allowed.indexOf(p.get(key)) >= 0 ? p.get(key) : cur;
-    if(BRACKETS_BY_YEAR[+p.get("y")]) taxYear = +p.get("y");
-    inputMode = pick("im", ["income","tax"],            inputMode);
-    childMode = pick("cm", ["birth","amount"],          childMode);
-    splitMode = pick("sm", ["auto","free","restricted"], splitMode);
-    if(p.has("na")) $("nameA").value = p.get("na").slice(0,MAX_TEXT);
-    if(p.has("nb")) $("nameB").value = p.get("nb").slice(0,MAX_TEXT);
-    if(p.has("a"))  $("valA").value  = groupDigits(digitsOf(p.get("a")).slice(0,9));
-    if(p.has("b"))  $("valB").value  = groupDigits(digitsOf(p.get("b")).slice(0,9));
+    // Was im Link fehlt, steht für den Default – nicht für "unverändert lassen".
+    // Andernfalls zeigt der zweite Link im selben Tab (hashchange) noch Werte aus dem
+    // ersten: buildQuery() lässt Defaults ja gerade weg, der Empfänger säh sie nie.
+    const pick = (key, allowed, def) => allowed.indexOf(p.get(key)) >= 0 ? p.get(key) : def;
+    taxYear   = BRACKETS_BY_YEAR[+p.get("y")] ? +p.get("y") : DEF.y;
+    inputMode = pick("im", ["income","tax"],             DEF.im);
+    childMode = pick("cm", ["birth","amount"],           DEF.cm);
+    splitMode = pick("sm", ["auto","free","restricted"], DEF.sm);
+    erhFB     = p.get("ef") === "1";
+    $("nameA").value = p.has("na") ? p.get("na").slice(0,MAX_TEXT) : DEF.na;
+    $("nameB").value = p.has("nb") ? p.get("nb").slice(0,MAX_TEXT) : DEF.nb;
+    $("valA").value  = p.has("a")  ? groupDigits(digitsOf(p.get("a")).slice(0,9)) : "";
+    $("valB").value  = p.has("b")  ? groupDigits(digitsOf(p.get("b")).slice(0,9)) : "";
 
     // Fehlende Spalten sind kein Fehler, sondern der Normalfall: sie stehen für
     // "alle Kinder auf Default". Die Anzahl kommt dann aus "k".
@@ -863,7 +916,7 @@
     // sagen die Spalten die Anzahl, und ohne beides bleibt es beim Default.
     const cols = Math.max(ns.length, bs.length, as.length, hs.length);
     const want = p.has("k") ? Math.max(+p.get("k") || 0, cols) : (cols || DEF.kids);
-    const n = Math.min(want, MAX_LINK_CHILDREN);
+    const n = Math.min(want, MAX_CHILDREN);
     if(n){
       children.length = 0;
       for(let i=0; i<n; i++){
@@ -887,6 +940,7 @@
       .forEach(b => b.setAttribute("aria-pressed", String(b.dataset[key]) === String(val)));
     set("taxYear","year",taxYear);   set("inputMode","mode",inputMode);
     set("childMode","cmode",childMode); set("splitMode","split",splitMode);
+    $("erhFB").checked = erhFB;
   }
 
   // localStorage kann werfen (Privatmodus, abgeschaltete Cookies) – das ist kein Grund,
@@ -931,11 +985,25 @@
   wireSeg("childMode", b => { childMode =  b.dataset.cmode; renderChildren(); });
 
   $("addChild").addEventListener("click",()=>{
+    if(children.length >= MAX_CHILDREN) return;
     children.push({label:"Kind "+(++childSeq), amount:FB_U18, birth:"", beihilfe:true});
     renderChildren(); compute();
   });
   ["nameA","nameB"].forEach(id=>$(id).addEventListener("input",compute));
-  ["valA","valB"].forEach(id=>$(id).addEventListener("input",e=>{ maskAmount(e.target); compute(); }));
+  // Der Stand vor dem Tastendruck – maskAmount() erkennt daran einen gelöschten
+  // Tausenderpunkt. beforeinput feuert vor der Änderung und hält ihn auch dann aktuell,
+  // wenn das Feld zwischendurch aus einem Link befüllt wurde.
+  ["valA","valB"].forEach(id=>{
+    const el = $(id);
+    let prev = el.value;
+    el.addEventListener("beforeinput", ()=>{ prev = el.value; });
+    el.addEventListener("input", e=>{
+      maskAmount(el, prev, e.inputType === "deleteContentBackward");
+      prev = el.value;
+      compute();
+    });
+  });
+  $("erhFB").addEventListener("change", e=>{ erhFB = e.target.checked; refreshLabels(); compute(); });
 
   $("shareBtn").addEventListener("click", ()=>{
     const url = shareHref();

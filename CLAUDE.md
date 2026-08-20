@@ -25,8 +25,18 @@ UI-Sprache: **Deutsch**. Kein Build-Step, keine Frameworks – gesamter Code in 
   nutzt `BRACKETS_BY_YEAR[year || taxYear]`; `taxYear` ist per Segmented-Control wählbar
   (2024 / 2025 / 2026), Default 2025.
 - Optimierung: `bestSplit()` enumeriert pro Kind die zulässigen Anteile
-  (frei: `[0,0.5,1]`; ab 2027: `[0.25,0.5,0.75]`) und maximiert den genutzten Bonus,
+  (frei: `[0,0.5,1]`; ab 2027: `[0.25,0.5,0.75]`) und maximiert den genutzten Bonus
+  über **alle Kinder gemeinsam** (die Deckel gelten für alle zusammen),
   Tie-Break auf gleichmäßigere Aufteilung.
+  Der Tie-Break vergleicht gegen `maxUsed`, das **bisher gesehene Maximum**, nicht gegen
+  die gerade markierte Aufteilung. Wer das zurückdreht, bekommt Drift: jeder angenommene
+  Gleichstand senkt die Latte um bis zu `EPS`, und über mehrere Schritte summiert sich
+  das (nachgewiesen 1,00 € unter dem Optimum). So bleibt der Abstand auf `EPS` begrenzt.
+- Der Anteil je Kind läuft **immer** durch `shareToA(amt, f) = Math.round(amt*f)`, der Rest
+  geht an den anderen Elternteil. `evaluate()` und `perChildTable()` benutzen dieselbe
+  Funktion – sonst zeigt ein 667-€-Kind bei 50/50 „334 / 334" (ein Euro zu viel) und die
+  Zeilensumme passt nicht zu „zugeteilt" auf derselben Karte. Zweimal aufrunden ist
+  genau der Fehler, den `amountFor()` schon für die Gesamtsumme verhindert.
 - Beträge sind **Monatsbeträge**: 166,68 € bis einschließlich des Monats des 18. Geburtstags,
   danach 58,34 € (nur mit Familienbeihilfe). Die „2.000 €" / „700 €" sind gerundete Jahreswerte
   (12 × 166,68 = 2.000,16). `childMode` = `birth` (Geburtsdatum, Default) | `amount` (Pauschale).
@@ -47,6 +57,12 @@ UI-Sprache: **Deutsch**. Kein Build-Step, keine Frameworks – gesamter Code in 
   - Beide Masken verankern den Cursor an der Anzahl Ziffern links von ihm. Wer das
     wegoptimiert, bekommt den Sprung ans Feldende zurück, wegen dem in 1.2.1 während
     des Tippens gar nicht umgeschrieben wurde.
+  - **Backspace auf einem Trennzeichen nimmt in beiden Masken die Ziffer davor mit.**
+    Ohne das ist der Tastendruck wirkungslos – die Maske setzt das Trennzeichen sofort
+    wieder, der Cursor rutscht nur eine Stelle nach links. Erkannt wird der Fall daran,
+    dass die Ziffernzahl gleich geblieben ist. Den Stand davor liefert beim Datum
+    `children[i].birth`, beim Betrag eine pro Feld mitgeführte Variable, die ein
+    `beforeinput`-Listener aktuell hält – sonst wäre sie nach `applyQuery()` veraltet.
   - Der Datumspunkt steht **nur zwischen Gruppen, nie am Ende**. Ein angehängter Punkt
     („27.") kommt nach jedem Backspace sofort zurück – das Feld wäre nicht mehr leerbar.
     Backspace auf einem Punkt nimmt die Ziffer davor mit; erkannt wird das daran, dass
@@ -56,17 +72,35 @@ UI-Sprache: **Deutsch**. Kein Build-Step, keine Frameworks – gesamter Code in 
 - Aufteilungsregel: `splitMode` = `auto` (Default) | `free` | `restricted`; `effSplit()` löst
   `auto` aus `taxYear` + `ruleForYear()` auf. Datumsvergleiche laufen über Schlüssel `JJJJMMTT`
   (`key4`), **nicht** über `Date`-Objekte – sonst verschiebt die Zeitzone die Tagesgrenze.
+  `effSplit()` steigt bei `childMode !== "birth"` auf `free` aus: `c.birth` bleibt im
+  Pauschal-Modus stehen und wäre sonst unsichtbarer Altbestand, aus dem der Rechner still
+  eine Altersentscheidung ableitet.
+- **Erhöhte Familienbeihilfe** (`erhFB`, `ef=1` im Link): ein solches Kind ist einem Kind
+  unter 4 gleichgestellt, `ruleForYear()` gibt dann sofort `free` zurück. Haushaltsbezogen
+  wie die Altersbedingung, deshalb ein globales Häkchen und keine Spalte je Kind.
+- `MAX_CHILDREN` (12) gilt für die **Eingabe und den Link**. Nicht nur für den Link:
+  `bestSplit()` ist 3^n, 15 Kinder kosten gemessen 3,3 s **pro Tastendruck**, und ein Stand
+  über der Grenze wäre ohnehin nicht teilbar – der Link würde beim Öffnen gekappt.
 - Die 2027-Ausnahme ist **haushaltsbezogen** („kein weiteres Kind unter 4"), also
   alles-oder-nichts. Ein globaler Umschalter bildet das korrekt ab; je Kind wäre falsch.
+  Rechtsgrundlage inzwischen kundgemacht: **BGBl. I Nr. 62/2026** vom 29.07.2026
+  (Budgetbegleitgesetz 2027–2028, Beschluss NR 08.07.2026, kein Einspruch des BR am
+  16.07.2026).
   **Offen:** ob im Übergangsjahr monatsweise ab dem 4. Geburtstag oder erst ab Folgejahr –
   nicht belegt, im UI ausdrücklich als offen gekennzeichnet. Nicht stillschweigend festlegen.
+  Der Volltext von § 33 Abs. 3a EStG i. d. F. BBG 2027–2028 konnte aus der Session vom
+  20.08.2026 nicht gelesen werden (RIS und BMF vom Egress-Proxy geblockt); die Ableitungen
+  stammen aus Kanzlei-Zusammenfassungen. Vor dem Schließen dieser Frage im RIS gegenlesen.
 
 **Tarifstufen** (Quelle BMF/WKO/AK) – je Jahr ein eigenes Array in `BRACKETS_BY_YEAR`,
 **nie ein bestehendes überschreiben**:
 - 2024: `[[12816,0],[20818,.20],[34513,.30],[66612,.40],[99266,.48],[1000000,.50],[Inf,.55]]`
 - 2025: `[[13308,0],[21617,.20],[35836,.30],[69166,.40],[103072,.48],[1000000,.50],[Inf,.55]]`
 - 2026: `[[13539,0],[21992,.20],[36458,.30],[70365,.40],[104859,.48],[1000000,.50],[Inf,.55]]`
-- 2027: noch nicht kundgemacht – erst mit Beleg ergänzen.
+- 2027: noch nicht kundgemacht (Stand 20.08.2026) – erst mit Beleg ergänzen. Die
+  Inflationsanpassungsverordnung fürs Folgejahr kommt üblicherweise Ende August
+  (die für 2026 am 30.08.2025). **Sobald 2027 dazukommt**, liefert `effSplit()` erstmals
+  „restricted" aus `auto` – vorher die Übergangsjahr-Frage klären.
 
 ## Fallen, die schon einmal zugeschlagen haben
 
@@ -100,6 +134,11 @@ UI-Sprache: **Deutsch**. Kein Build-Step, keine Frameworks – gesamter Code in 
 - **Hash, nicht Query-String.** Der Teil hinter `#` wird nie an einen Server geschickt und
   steht in keinem Referer. Bei Einkommensdaten ist das der ganze Punkt – nicht auf
   `?`-Parameter umstellen.
+- **Was im Link fehlt, ist der Default – nicht „unverändert lassen".** `applyQuery()` setzt
+  jeden nicht gelieferten Schlüssel auf `DEF` zurück. Andernfalls zeigt der zweite Link im
+  selben Tab (`hashchange`) noch Werte des ersten, weil `buildQuery()` Defaults ja gerade
+  weglässt: `#a=55000&na=Anna`, dann `#b=40000` → „Anna" bliebe stehen, obwohl der zweite
+  Link den Default kodiert. Ein Link muss den Stand zeigen, den auch der Empfänger sieht.
 - Ein Kind = vier gleichnamige Parameter (`cn`/`cb`/`ca`/`ch`) an derselben Position,
   gelesen über `getAll()`. Deshalb gibt es kein Trennzeichen innerhalb eines Wertes und
   nichts zusätzlich zu escapen. Leere Werte bleiben als leerer Parameter stehen, sonst
@@ -123,7 +162,7 @@ UI-Sprache: **Deutsch**. Kein Build-Step, keine Frameworks – gesamter Code in 
 - **Ein Link ist Fremdeingabe.** `applyQuery()` prüft jeden Wert gegen die erlaubten
   (Jahr nur aus `BRACKETS_BY_YEAR`, Modi nur aus ihrer Liste, Betrag je Kind nur die
   beiden Stufen des Selects), kappt Texte auf `MAX_TEXT` und die Kinderzahl auf
-  `MAX_LINK_CHILDREN` (12). Die Obergrenze ist kein Schönheitsfehler: `bestSplit()` ist
+  `MAX_CHILDREN` (12). Die Obergrenze ist kein Schönheitsfehler: `bestSplit()` ist
   3^n, ohne sie hängt ein fremder Link den Browser des Empfängers auf.
 - `syncSegs()` zieht `aria-pressed` der vier Segmented-Controls nach. Wer Zustand
   einliest und das vergisst, bekommt eine Leiste, die etwas anderes anzeigt als der
@@ -158,6 +197,16 @@ UI-Sprache: **Deutsch**. Kein Build-Step, keine Frameworks – gesamter Code in 
   Nach der ersten Ziffer steht „Weiter tippen", nicht die rote Warnung.
 - Tarifsteuer-Modus, cA=850, cB=9.000, Kinder 2.000 + 700, ab 2027 → Empfehlung ist
   gemischt (Kind 1 = 25:75, Kind 2 = 50:50); Kopfzeile darf keinen Mittelwert zeigen.
+- Kind mit Geburtsdatum **01.09.2025**, Jahr 2025 (→ 667 €), 50/50: die Zeile je Kind muss
+  „334 € / 333 €" zeigen, nicht „334 € / 334 €", und die Zeilen müssen sich auf die
+  „zugeteilt"-Werte derselben Karte aufsummieren.
+- „Pflicht ab 2027" mit Kindern über 4 → Häkchen **erhöhte Familienbeihilfe** setzen:
+  Modus „Automatisch" fällt auf freie Wahl zurück, im Link steht `ef=1`.
+- 12 Kinder anlegen → „+ Kind hinzufügen" ist deaktiviert und der Hinweis erscheint.
+- `#a=55000&na=Anna` öffnen, im selben Tab `#b=40000` aufrufen → Name steht wieder auf
+  „Elternteil A", Einkommen A ist leer. Ein Link zeigt immer den vollen Stand.
+- `55.000` im Einkommensfeld, Cursor hinter den Tausenderpunkt, Backspace → `5.000`
+  (ein Tastendruck, nicht zwei).
 - `<img src=x onerror=alert(1)>` als Name → erscheint als Text, kein Element im DOM.
 - Werte eintragen → „Link zum Teilen kopieren" → Link in einem frischen Profil öffnen:
   identischer Stand, Segmented-Controls stimmen mit der Rechnung überein.
