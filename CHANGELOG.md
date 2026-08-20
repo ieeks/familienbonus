@@ -2,6 +2,62 @@
 
 Alle nennenswerten Änderungen. Format lose nach Keep-a-Changelog.
 
+## [1.4.0] — 2026-08-20
+
+Code-Review mit Rechtsrecherche. Die Aufteilungspflicht ab 2027 ist inzwischen
+kundgemacht (**BGBl. I Nr. 62/2026** vom 29.07.2026, Budgetbegleitgesetz 2027–2028);
+der Bundesrat hat am 16.07.2026 keinen Einspruch erhoben. Die **Tarifstufen 2027**
+sind weiterhin offen – die Inflationsanpassungsverordnung für das Folgejahr kommt
+üblicherweise erst Ende August (die für 2026 am 30.08.2025).
+
+### Neu
+- **Erhöhte Familienbeihilfe.** Ein Kind, für das erhöhte Familienbeihilfe bezogen
+  wird, ist ab 2027 einem Kind unter 4 gleichgestellt – der Haushalt behält also die
+  freie 100/0-Wahl. Das fehlte bisher ganz. Umgesetzt als **haushaltsbezogenes
+  Häkchen** neben der Aufteilungsregel, aus demselben Grund wie die Altersbedingung:
+  die Ausnahme hängt am Haushalt, nicht am einzelnen Kind. Steht als `ef=1` im Link.
+
+### Behoben
+- **Die Aufstellung je Kind rundete zweimal auf.** Ein Kind mit 667 € (z. B. Geburt
+  im September) zeigte bei 50/50 „334 € / 334 €" – einen Euro mehr, als zu verteilen
+  war –, und die Zeilensumme passte nicht zu „zugeteilt" auf derselben Karte. Der
+  Anteil wird jetzt einmal auf ganze Euro gerundet (`shareToA()`), der Rest geht an
+  den anderen Elternteil; Zeilen, Spaltensummen und „genutzt/verpufft" stammen damit
+  aus derselben Rechnung.
+- **Der Tie-Break in `bestSplit()` konnte vom Optimum wegdriften.** Verglichen wurde
+  gegen die gerade markierte Aufteilung, und jeder angenommene Gleichstand senkte die
+  Latte um bis zu `EPS`. Über mehrere Schritte summierte sich das: nachgewiesen 1,00 €
+  unter dem Optimum. Verglichen wird jetzt gegen das bisher gesehene Maximum, der
+  Abstand bleibt damit auf `EPS` (0,50 €) begrenzt. Über 200.000 Zufallsfälle mit
+  erreichbaren Beträgen: keine Abweichung mehr.
+- **Ein zweiter Link im selben Tab zeigte noch Werte des ersten.** `buildQuery()` lässt
+  Defaults ja gerade weg – `applyQuery()` las das aber als „unverändert lassen" statt
+  als „Default". Wer `#a=55000&na=Anna` öffnete und danach `#b=40000`, sah weiter
+  „Anna". Fehlende Schlüssel setzen jetzt auf den Default zurück; der Link beschreibt
+  den Stand damit vollständig, so wie der Empfänger ihn sieht.
+- **Kein Deckel auf die Kinderzahl in der Eingabe.** `MAX_LINK_CHILDREN` schützte nur
+  Empfänger eines fremden Links, nicht den eigenen Browser: `bestSplit()` ist 3^n,
+  15 Kinder kosteten gemessen **3,3 s pro Tastendruck**. Und ein Stand mit mehr als 12
+  Kindern ließ sich ohnehin nicht unverfälscht teilen – der Link wurde beim Öffnen
+  gekappt. Jetzt eine Grenze für beides (`MAX_CHILDREN` = 12), mit deaktiviertem
+  „+ Kind hinzufügen" und Hinweis statt stiller Kappung.
+- **Backspace auf einem Tausenderpunkt war ein Leerlauf.** Die Maske setzte den Punkt
+  sofort wieder, der Cursor rutschte nur eine Stelle nach links – man musste zweimal
+  drücken. Jetzt nimmt der Tastendruck die Ziffer davor mit, genau wie im Datumsfeld.
+- **`effSplit()` prüfte die Geburtsdaten auch im Pauschal-Modus.** Dort sind sie
+  unsichtbarer Altbestand. Bisher folgenlos, weil 2027 als Steuerjahr nicht wählbar
+  ist – ab dem ersten 2027-Eintrag in `BRACKETS_BY_YEAR` wäre es eine stille
+  Fehlentscheidung geworden.
+
+### Geprüft, unverändert
+- Tarifstufen 2024/2025/2026 gegen BMF/WKO/USP abgeglichen – korrekt.
+  Sanity: 55.000 € → 13.904 (2024) / 13.593 (2025) / 13.447 (2026).
+- Die 25:75/50:50-Stufen, die haushaltsbezogene Alles-oder-nichts-Auslegung und die
+  monatsgenaue 18.-Geburtstags-Grenze entsprechen dem kundgemachten Text.
+- Der Standardfall-Link bleibt `#a=55000&b=32000&cb=27072018&cb=11052022` und ist
+  weiterhin ein Fixpunkt; ein Link mit `y=9999`, 40 Kindern und `<img onerror=…>`
+  fällt weiter sauber auf Defaults zurück.
+
 ## [1.3.0] — 2026-08-09
 
 ### Neu

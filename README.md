@@ -18,10 +18,12 @@ der ab **2027** geltenden Aufteilungspflicht (25:75 / 50:50).
 - Eingabehilfen: das Einkommen bekommt beim Tippen **Tausenderpunkte** (55000 → 55.000),
   das Geburtsdatum die **Punkte automatisch** (27072018 → 27.07.2018) – auf der
   iOS-Zifferntastatur gibt es keinen Punkt.
-- Beliebig viele Kinder, wahlweise per **Geburtsdatum** (tippbar als TT.MM.JJJJ, monatsgenau: 166,68 € bis
+- Bis zu **12 Kinder**, wahlweise per **Geburtsdatum** (tippbar als TT.MM.JJJJ, monatsgenau: 166,68 € bis
   einschließlich des Monats des 18. Geburtstags, danach 58,34 € mit Familienbeihilfe)
   oder pauschal mit 2.000 € / 700 € pro Jahr.
-- Zwei Modi: **freie Wahl** (bis 2026) und **Aufteilungspflicht ab 2027**.
+- Zwei Modi: **freie Wahl** (bis 2026) und **Aufteilungspflicht ab 2027**, plus ein
+  Häkchen für **erhöhte Familienbeihilfe** – damit behält der Haushalt auch ab 2027
+  die freie Wahl.
 - Ergebnis: nutzbarer Bonus je Elternteil, verpuffter Rest, empfohlene Aufteilung – und
   die **Zuteilung je Kind**, also das, was tatsächlich ins Formular kommt.
 - **Teilbarer Link**: „Link zum Teilen kopieren" nimmt den kompletten Stand mit, damit ihn
@@ -42,7 +44,10 @@ Tarifsteuer gedeckelt. Er wirkt **nicht** gegen die fix (6 %) besteuerten Sonder
 den Bonus nicht – daher hier bewusst ausgeklammert.
 
 Pro Elternteil gilt als „Aufnahmefähigkeit": **Tarifsteuer(Einkommen)**. Verteilt wird so,
-dass `min(zugeteilt_A, Steuer_A) + min(zugeteilt_B, Steuer_B)` maximal wird.
+dass `min(zugeteilt_A, Steuer_A) + min(zugeteilt_B, Steuer_B)` maximal wird – über alle
+Kinder **gemeinsam** optimiert, weil beide Deckel für alle Kinder zusammen gelten. Der
+Anteil je Kind wird dabei einmal auf ganze Euro gerundet; die Aufstellung je Kind, die
+Spaltensummen und „genutzt/verpufft" stammen daher aus derselben Rechnung.
 
 **Tarifstufen je Jahr** (Obergrenze der Stufe, BMF; Werte in `BRACKETS_BY_YEAR`):
 
@@ -56,19 +61,33 @@ dass `min(zugeteilt_A, Steuer_A) + min(zugeteilt_B, Steuer_B)` maximal wird.
 | 50 %            | 1.000.000 | 1.000.000 | 1.000.000 |
 | 55 %            | darüber   | darüber   | darüber   |
 
-Die Stufen für **2027** sind noch nicht kundgemacht; im Modus „ab 2027" wird mit den
-Stufen des gewählten Jahres gerechnet und darauf hingewiesen.
+Die Stufen für **2027** sind noch nicht kundgemacht (Stand 20.08.2026); im Modus
+„ab 2027" wird mit den Stufen des gewählten Jahres gerechnet und darauf hingewiesen.
+Die Inflationsanpassungsverordnung für das Folgejahr kommt üblicherweise erst Ende
+August – die für 2026 am 30.08.2025.
 
 **Aufteilung:** freie Wahl → pro Kind 0 / 50 / 100 %. Ab 2027 → nur noch 25:75 oder 50:50,
 sobald das Kind das 4. Lebensjahr vollendet hat und **kein** weiteres Kind unter 4 im
-Haushalt lebt. Alleinerziehende behalten 100 %. Rechtsgrundlage: Budgetbegleitgesetz
-2027–2028 (Beschluss Nationalrat 08.07.2026).
+Haushalt lebt. Einem Kind unter 4 **gleichgestellt** ist ein Kind, für das erhöhte
+Familienbeihilfe bezogen wird. Alleinerziehende behalten 100 %. Rechtsgrundlage:
+Budgetbegleitgesetz 2027–2028, **BGBl. I Nr. 62/2026** (kundgemacht 29.07.2026;
+Beschluss Nationalrat 08.07.2026, kein Einspruch des Bundesrates am 16.07.2026).
+
+Weil die Ausnahme am Haushalt hängt („kein weiteres Kind unter 4"), ist sie
+alles-oder-nichts: ein Kind unter 4 erhält allen Kindern des Haushalts die freie Wahl.
+Das Tool bildet das als globalen Zustand ab, nicht je Kind.
+
+Ob im **Übergangsjahr** die Pflicht schon ab dem Monat des 4. Geburtstags gilt oder erst
+im Folgejahr, ist aus den Materialien nicht eindeutig; das Tool legt sich nicht fest und
+weist im UI darauf hin.
 
 Weil die Aufteilung gestuft ist, heißt „beide Ceilings zusammen ≥ Gesamtbonus" **nicht**,
 dass nichts verpufft – maßgeblich ist immer die beste erreichbare Aufteilung.
 
 > Vereinfachte Modellrechnung, **keine Steuerberatung**. Kindermehrbetrag (Negativsteuer,
-> bis 700 €/Kind) für Geringverdiener separat prüfen.
+> 700 €/Kind seit 2024, Valorisierung bis inkl. 2028 ausgesetzt) für Geringverdiener
+> separat prüfen – er ist hier bewusst nicht modelliert, weil er kein Absetzbetrag gegen
+> die Tarifsteuer ist, sondern genau dann greift, wenn keine da ist.
 
 ## Tech
 
