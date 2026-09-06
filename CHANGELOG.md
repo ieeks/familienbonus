@@ -2,6 +2,128 @@
 
 Alle nennenswerten Änderungen. Format lose nach Keep-a-Changelog.
 
+## [1.5.0] — 2026-09-06
+
+Zweites Code-Review (Dev-Team, Stand 89c793a). Auftrag ausdrücklich: **Fehler beheben und
+den Geltungsbereich sichtbar begrenzen**, kein Funktionsausbau. Die Tarifstufen 2024–2026,
+die Grenzprüfungen und der Optimierungsansatz wurden dabei bestätigt. Erledigt sind alle
+elf Findings; die vier Erweiterungen (Anspruchsmonate, getrennte Eltern/Unterhalt,
+L16-Helfer, vollständige 2027-Veranlagung) bleiben bewusst offen und stehen im TODO.
+
+### Behoben
+
+- **Dezimalbeträge wurden um Größenordnungen verfälscht (F01).** Die Maske zog alle
+  Ziffern zusammen: aus „1.234,56" wurden 123.456 €, aus „55.000,00" 5.500.000 €, aus
+  „-500" 500 €. Beträge werden jetzt in Vorzeichen, Euro und Cent zerlegt (`splitAmount()`).
+  Das Komma bleibt beim Tippen stehen, ein eingefügter englischer Dezimalpunkt („12.34")
+  wird als solcher erkannt, der Tausenderpunkt weiterhin als Gruppierung („12.345").
+  Ein negativer Betrag wird nicht mehr stillschweigend positiv, sondern als Fehler
+  ausgewiesen – die Karte zeigt „–" statt einer erfundenen Aufnahmefähigkeit.
+- **Unvollständige Angaben erschienen als fertiges Ergebnis (F06).** Zwei Kinder, nur ein
+  Geburtsdatum: das zweite zählte als null, darüber stand „Der volle Bonus von 2.000 €
+  kommt an". Fehlendes ist kein bestätigter Nullwert. `dataIssues()` prüft Vollständigkeit
+  jetzt getrennt von der Rechnung; solange etwas fehlt, steht der Mangel **über** dem
+  Ergebnis, die Karte trägt „vorläufig" statt „Empfohlen", und keine Aussage behauptet
+  mehr, dass etwas ankommt. Eine bewusst eingetragene 0 bleibt ein gültiger Fall.
+- **Intern wird in Cent gerechnet (F10).** Die Beträge je Kind wurden vor der Optimierung
+  auf ganze Euro gerundet und danach noch einmal beim Aufteilen – bei 666,72 € hälftig kam
+  „334 / 333" heraus, also eine Rundungsbevorzugung von A, und 2.000,16 € wurden zu
+  2.000 €. Alles läuft jetzt als ganze Cent durch Rechnung und Anzeige: 50/50 ergibt
+  333,36 € für beide. `EPS` ist damit ein halber Cent statt eines halben Euro – die
+  Suche liefert das exakte Optimum, nachgewiesen gegen eine unabhängige Enumeration.
+- **Ein alter Teilen-Link verdrängte neuere Eingaben (F07).** Link mit 20.000 € öffnen, auf
+  30.000 € ändern, neu laden – der Hash gewann gegen den gespeicherten Stand, und das
+  folgende Autosave überschrieb ihn auch noch. Der Hash ist eine Momentaufnahme: er wird
+  beim Import sofort in den Speicher übernommen und danach aus der Adresse entfernt
+  (`dropStateHash()`). Ein fremder Hash wie `#sec-ergebnis` bleibt unangetastet.
+- **Der Moduswechsel deutete dieselbe Zahl um (F08).** Aus 20.000 € Einkommen wurden beim
+  Umschalten 20.000 € Tarifsteuer. Die Werte werden jetzt je Eingabeart geparkt und beim
+  Zurückschalten unverändert wiedergeholt; umgerechnet wird nichts, das wäre nur eine
+  andere Art zu raten.
+- **Erhöhte Familienbeihilfe: Text und Rechnung widersprachen sich (F04).** Im manuell
+  gesetzten Pflichtmodus erklärte der Hinweis die freie Wahl, gerechnet wurde 75/25. Der
+  Text nennt jetzt die tatsächlich wirksame Regel und weist den manuellen Modus als
+  bewusst abweichende Simulation aus – auch dann, wenn „frei" gesetzt ist, wo die
+  Automatik „Pflicht" ergäbe.
+- **Eingefügte Datumswerte wurden zerlegt.** „1.1.2020" ergab „11.20.20", obwohl
+  `parseBirth()` das Format kennt. Am Stück eingefügte Datumswerte werden vor dem
+  Maskieren geparst.
+
+### Geltungsbereich statt stiller Annahmen
+
+- **„Wofür dieser Rechner gilt"** steht als Block direkt beim Ergebnis: zwei ganzjährig
+  anspruchsberechtigte Elternteile, durchgehende Familienbeihilfe, Einkommen nach allen
+  Abzügen, „ab 2027" als Simulation. Was nicht abgebildet ist, steht dort ausdrücklich
+  drin, statt sich in einem plausiblen Ergebnis zu verstecken (F02, F03, F05, F09).
+- **KZ 245 ist der Ausgangswert, nicht das Einkommen (F05).** Der bisherige Hinweis
+  „am L16 ≈ KZ 245" führte zu einer unbereinigten Bemessungsgrundlage: bei 20.000 € und
+  nur dem Werbungskostenpauschale von 132 € war die Aufnahmefähigkeit um 26,40 € zu hoch.
+  Der Text verlangt jetzt das steuerpflichtige Einkommen nach Werbungskosten,
+  Sonderausgaben und außergewöhnlichen Belastungen.
+- **Der Pflichtmodus sagt, was er rechnet (F09).** Er verwendet Tarif, Kinderbeträge und
+  Alter des gewählten Jahres – 2027 ist als Steuerjahr weiterhin nicht wählbar. Dazu der
+  Hinweis, dass die Pflicht zwei Anspruchsberechtigte voraussetzt und ein leeres oder
+  niedriges zweites Einkommen kein Nachweis für alleinige Berechtigung ist (F03).
+- **Familienbeihilfe wird nur unterstellt, wo es dasteht (F02).** Das Häkchen nach dem
+  18. Geburtstag heißt jetzt „durchgehend bezogen"; Teiljahre kann der Rechner nicht und
+  sagt das.
+
+### Neu
+
+- **Regressionstests (F11).** `node tests/run.mjs` – 145 Prüfungen ohne Framework und ohne
+  Build: Tarifgrenzen (jede Stufe darunter/darauf/darüber), Beträge mit Cent, Geburtsmonate,
+  Rundung je Kind, Optimalität gegen eine unabhängige Suche, Vollständigkeitssperre,
+  Link-Fixpunkt und Fremdeingabe, Hash-/Speicher-Reihenfolge, Moduswechsel. `tests/dom.mjs`
+  lädt dafür `index.html` in einer nachgebauten DOM-Umgebung; die Seg-Buttons und
+  Startwerte liest es aus dem HTML, damit die Tests eine Umbenennung mitbekommen. Die
+  ausgelieferte Seite bleibt eine einzige Datei – der Testhaken am Ende des Skripts ist
+  im Browser nicht aktiv. Dazu ein GitHub-Actions-Workflow.
+
+### Geändert
+
+- **Beträge werden mit Cent angezeigt, wo welche anfallen** („2.000,16 €", „13.593,10 €"),
+  runde Beträge weiterhin ohne. Die Anzeige rundet nicht mehr, was die Rechnung genau hat.
+- **Namensänderungen lösen keine neue Suche mehr aus.** `bestSplit()` merkt sich ihr letztes
+  Ergebnis; bei zwölf Kindern kostete jeder Tastendruck im Namensfeld vorher die komplette
+  3^12-Enumeration (gemessen ~1,2 s, jetzt unter 60 ms).
+- **Datenschutzhinweis präzisiert.** „Nichts wird übertragen" galt für die Rechnung, nicht
+  für die Seite: die Schriften kommen von Google Fonts (IP-Adresse), und der gespeicherte
+  Stand liegt unverschlüsselt im Browserprofil.
+
+### Nachgezogen nach dem Nachreview zu PR #8 (N01–N03)
+
+- **N01 – Backspace machte aus 55.000 € plötzlich 55 €.** Eine Regression aus der
+  F01-Korrektur: die Erkennung des englischen Dezimalpunkts („12.34") steckte in
+  `splitAmount()` – also in genau dem Parser, der auch den eigenen Feldinhalt liest.
+  Nach dem Löschen der letzten Ziffer steht „55.000" kurz als „55.00" im Feld, und der
+  Parser las das als 55,00. Die beiden Zuständigkeiten sind jetzt getrennt:
+  `splitAmount()` liest **eigenen** Feldinhalt, wo ein Punkt immer Tausenderpunkt ist;
+  `parseAmountText()` liest **eingefügten** Text, und nur dort darf ein Punkt ein
+  Dezimalpunkt sein. „55.000" → Backspace → „5.500", „1.234" → „123", „12.345" → „1.234".
+  Entf auf einem Tausenderpunkt nimmt jetzt spiegelbildlich die Ziffer dahinter mit.
+- **N02 – ungültige Formate wurden still zu gültigen Beträgen.** „−500" mit
+  typografischem Minus wurde +500, „12abc34" wurde 1.234 €, „1234.56 €" wurde
+  123.456 €. Eingefügter Text wird jetzt als Ganzes geprüft: erkannt und normalisiert
+  (auch mit Währungssuffix, geschützten Leerzeichen und typografischem Minus) – oder
+  **unverändert stehen gelassen** und als unverwertbar gemeldet. Weitertippen glättet
+  Unlesbares nicht nachträglich zu einer Zahl. Ein unverwertbarer Betrag ergibt keinen
+  Deckel, keine Empfehlung und steht auch nicht im Link. Mehrdeutiges wie „1,234"
+  (englischer Tausender oder drei Nachkommastellen?) wird abgelehnt statt geraten.
+- **N03 – die Zufallstests prüften fast nur ein Kind.** Von 800 Fällen hatten 796 genau
+  ein Kind, keiner mehr als drei – die gemeinsame Optimierung über mehrere Kinder war
+  damit kaum abgesichert. Die Kinderzahl wird jetzt explizit durchlaufen (1 bis 6, beide
+  Aufteilungsmodi, je rund 300 Fälle) und die Deckel gezielt knapp unter, genau auf und
+  knapp über die erreichbaren Summen gelegt – dort entscheidet sich die Aufteilung.
+  N01 und N02 sind als dauerhafte Regressionen dazugekommen: 194 Prüfungen statt 145.
+
+### Geprüft, unverändert
+
+- Tarifstufen 2024–2026 und die Grenzsteuersätze an jeder Stufe (im Review gegen die
+  offiziellen Tabellen, hier zusätzlich als Test).
+- Der Standardfall-Link bleibt `#a=55000&b=32000&cb=27072018&cb=11052022` und ein Fixpunkt.
+- Die haushaltsbezogene Alles-oder-nichts-Auslegung der 2027-Ausnahme, die monatsgenaue
+  18.-Geburtstags-Grenze und `MAX_CHILDREN` = 12.
+
 ## [1.4.0] — 2026-08-20
 
 Code-Review mit Rechtsrecherche. Die Aufteilungspflicht ab 2027 ist inzwischen
