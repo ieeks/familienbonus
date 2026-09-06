@@ -110,6 +110,24 @@
     font-family:"IBM Plex Mono",monospace; font-size:10px; letter-spacing:.08em; font-weight:600;
     text-transform:uppercase; padding:2px 8px; border-radius:5px}
   .flag.alt{background:var(--line-strong); color:var(--muted)}
+  .flag.prov{background:var(--waste)}
+  /* Vorläufig: gerechnet wird weiter, hervorgehoben wird nichts. */
+  .scenario.prov{border-color:var(--waste); border-style:dashed}
+
+  /* Was fehlt, steht vor dem Ergebnis – nicht als Fußnote darunter. */
+  .warnbox{border:1px solid var(--waste); border-left-width:3px; border-radius:9px;
+    background:#FBF0EE; padding:11px 13px; margin-bottom:14px; font-size:12px; line-height:1.5}
+  .warnbox b{color:var(--waste)}
+  .warnbox ul{margin:6px 0 6px 18px}
+  .warnbox li{margin:2px 0}
+
+  .scope{margin-top:14px; padding-top:13px; border-top:1px solid var(--line);
+    font-size:11.5px; color:var(--muted); line-height:1.5}
+  .scope-head{font-family:"IBM Plex Mono",monospace; font-size:10px; letter-spacing:.08em;
+    text-transform:uppercase; color:var(--muted); margin-bottom:6px}
+  .scope ul{margin:0 0 0 16px}
+  .scope li{margin:3px 0}
+  .scope b{color:var(--ink); font-weight:600}
   .sc-top{display:flex; justify-content:space-between; align-items:baseline; gap:10px; margin-bottom:9px}
   .sc-name{font-size:13.5px; font-weight:600}
   .sc-split{font-family:"IBM Plex Mono",monospace; font-size:12px; color:var(--muted)}
@@ -237,8 +255,29 @@
 <section aria-labelledby="sec-ergebnis">
   <div class="sec-head"><span class="sec-num" aria-hidden="true">04</span><h2 class="sec-title" id="sec-ergebnis">Ergebnis</h2></div>
   <div class="ceilings" id="ceilings"></div>
+  <div id="issues"></div>
   <div id="scenarios"></div>
   <div class="note" id="dynNote"></div>
+  <div class="scope">
+    <div class="scope-head">Wofür dieser Rechner gilt</div>
+    <ul>
+      <li><b>Zwei anspruchsberechtigte Elternteile</b>, ganzjährig für dieselben Kinder. Getrennt
+        lebende Eltern mit Unterhaltsabsetzbetrag, Alleinerziehende und ein Wechsel der
+        Berechtigung im Jahr sind <b>nicht</b> abgebildet – steht der Bonus nur einer Person zu,
+        bleiben 100 % möglich, auch ab 2027.</li>
+      <li><b>Durchgehende Familienbeihilfe</b> für alle Monate mit Anspruch. Wird sie nur einen
+        Teil des Jahres bezogen (Ende der Ausbildung, Beihilfen­wechsel), rechnet dieses
+        Werkzeug zu hoch; Bezugsmonate je Kind erfasst es nicht.</li>
+      <li><b>Einkommen = nach allen Abzügen.</b> KZ 245 des L16 ist der Ausgangswert, nicht das
+        steuerpflichtige Einkommen: Werbungskosten (mindestens 132 € Pauschale), Sonderausgaben
+        und außergewöhnliche Belastungen gehen noch ab.</li>
+      <li><b>„Pflicht ab 2027" ist eine Simulation.</b> 2027 ist als Steuerjahr nicht wählbar –
+        die Tarifstufen dafür sind nicht kundgemacht. Gerechnet wird mit Tarif, Kinderbeträgen
+        und Alter des gewählten Jahres.</li>
+      <li>Kindermehrbetrag, Alleinverdiener-/Alleinerzieherabsetzbetrag und die Sonderzahlungen
+        (13./14.) sind nicht Teil der Rechnung.</li>
+    </ul>
+  </div>
   <div class="actions">
     <button type="button" class="add" id="shareBtn">Link zum Teilen kopieren</button>
     <button type="button" class="add ghost" id="resetBtn">Zurücksetzen</button>
@@ -260,12 +299,16 @@
 <script>
 (function(){
   "use strict";
-  const FB_U18 = 2000, FB_O18 = 700;
+  const FB_U18 = 2000, FB_O18 = 700;   // Auswahl im Pauschal-Modus (gerundete Jahreswerte)
   // Der Familienbonus ist ein Monatsbetrag. 12 × 166,68 = 2.000,16, deshalb sind die
   // "2.000 €" bzw. "700 €" gerundete Jahreswerte. Monatsgenau wird es im Jahr des
   // 18. Geburtstags: bis einschließlich dieses Monats der hohe Satz, danach der niedrige.
-  const FB_M_U18 = 166.68, FB_M_O18 = 58.34;
-  const EPS = 0.5;            // Cent-Rauschen; Beträge sind auf Euro gerundet
+  //
+  // Gerechnet wird durchgehend in **Cent**, als ganze Zahlen. Wer je Kind erst auf Euro
+  // rundet und dann teilt, bevorzugt stillschweigend einen Elternteil: 667 € hälftig
+  // ergaben "334 / 333". In Cent geht 66.672 / 2 glatt auf – 333,36 € für beide.
+  const FB_M_U18_C = 16668, FB_M_O18_C = 5834;
+  const EPS = 0.5;            // ein halber Cent: Rundungsrauschen, keine Euro-Toleranz
   let inputMode = "income";   // income | tax
   let childMode = "birth";    // birth | amount
   let splitMode = "auto";     // auto | free | restricted
@@ -303,9 +346,11 @@
   // Konvention und die BMF-Formulare schreiben "13.593" – das liefert "de-DE".
   // Formatter einmal anlegen, eur() läuft pro Tastendruck rund zwanzigmal.
   const NF = new Intl.NumberFormat("de-DE", {maximumFractionDigits:0});
-  const eur = n => NF.format(Math.round(n)) + " €";
   const NF2 = new Intl.NumberFormat("de-DE", {minimumFractionDigits:2, maximumFractionDigits:2});
-  const eur2 = n => NF2.format(n) + " €";
+  // Cent nur zeigen, wenn welche da sind: "2.000,16 €", aber "2.000 €". Runden darf die
+  // Anzeige nicht mehr – sonst behauptet sie eine Genauigkeit, die die Rechnung hat.
+  const eur = v => (Math.round(v*100)%100===0 ? NF.format(Math.round(v)) : NF2.format(v)) + " €";
+  const eurC = c => eur(c/100);          // Cent → Anzeige
   const ESC = {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"};
   const esc = s => String(s).replace(/[&<>"']/g, c => ESC[c]);
 
@@ -315,32 +360,85 @@
   // ohne das springt er bei jedem eingefügten Trennzeichen ans Feldende.
   const digitsOf = s => String(s==null?"":s).replace(/\D/g,"");
   const hasDigits = s => digitsOf(s) !== "";
-  const amountVal = s => { const d = digitsOf(s); return d ? +d : 0; };
   const groupDigits = d => d.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+
+  // Ein Betrag ist nicht "alle Ziffern hintereinander". Wer das so liest, macht aus
+  // "1.234,56" die Zahl 123456 und aus "-500" die Zahl 500 – beides stillschweigend,
+  // beides um Größenordnungen daneben. Zerlegt wird deshalb in Vorzeichen, Euro und
+  // Cent; was danach übrig bleibt, ist ein echter Wert oder ein sichtbarer Fehler.
+  //
+  // Dezimaltrennzeichen ist das Komma (AT/DE). Ein Punkt gilt als Tausenderpunkt –
+  // außer er steht ohne Komma vor genau ein bis zwei Schlussziffern ("12.34"): so
+  // gruppiert niemand, das ist ein eingefügter englischer Dezimalpunkt.
+  function splitAmount(s){
+    const t = String(s == null ? "" : s).trim();
+    const neg = /^-/.test(t);
+    const body = t.replace(/^[-+]\s*/, "");
+    let intPart = body, fracPart = null;
+    const comma = body.indexOf(",");
+    if(comma >= 0){
+      intPart = body.slice(0, comma);
+      fracPart = digitsOf(body.slice(comma+1)).slice(0,2);
+    } else {
+      const m = /^([\d.]*?)\.(\d{1,2})$/.exec(body);
+      if(m && digitsOf(m[1]) !== ""){ intPart = m[1]; fracPart = m[2]; }
+    }
+    return {neg, int: digitsOf(intPart).slice(0,9), frac: fracPart};
+  }
+  function joinAmount(p){
+    if(!p.int && !p.frac && p.frac !== "") return p.neg ? "-" : "";
+    return (p.neg ? "-" : "") + groupDigits(p.int) + (p.frac === null ? "" : "," + p.frac);
+  }
+  // Der Zahlenwert des Feldes – mit Cent und mit Vorzeichen. Negatives bleibt negativ,
+  // damit es weiter oben als Fehler auffallen kann statt hier zu verschwinden.
+  function amountVal(s){
+    const p = splitAmount(s);
+    if(!p.int && !p.frac) return 0;
+    const v = +((p.int || "0") + "." + (p.frac || "0"));
+    return p.neg ? -v : v;
+  }
+  const amountBad = s => hasDigits(s) && amountVal(s) < 0;
+  // Für Link und Speicher: Punkt als Dezimaltrennzeichen, keine Gruppierung.
+  function amountToLink(s){
+    const p = splitAmount(s);
+    return (p.neg ? "-" : "") + (p.int || "0") + (p.frac ? "." + p.frac : "");
+  }
+  const amountFromLink = s => joinAmount(splitAmount(s));
 
   function setCaretAfterDigits(el, text, n){
     let seen = 0, i = 0;
     for(; i < text.length && seen < n; i++) if(text.charCodeAt(i) >= 48 && text.charCodeAt(i) <= 57) seen++;
+    if(n === 0 && text.charAt(0) === "-") i = 1;   // hinter das Vorzeichen, nicht davor
     try { el.setSelectionRange(i, i); } catch(e){}
   }
 
-  // Beträge: Tausenderpunkte schon beim Tippen. Dafür type=text statt type=number –
-  // in einem Zahlenfeld wäre "55.000" ein ungültiger Wert und .value käme leer
-  // zurück. inputmode=numeric hält den Ziffernblock auf iOS.
-  // Backspace direkt auf einem Tausenderpunkt nimmt – wie im Datumsfeld – die Ziffer
-  // davor mit. Ohne das ist der Tastendruck wirkungslos: die Maske setzt den Punkt
-  // sofort wieder, der Cursor rutscht nur eine Stelle nach links.
+  // Backspace direkt auf einem Trennzeichen: die Maske setzt es sofort wieder, der
+  // Tastendruck wäre wirkungslos. Welches Zeichen gelöscht wurde, steht im Stand vor
+  // dem Tastendruck an genau der Cursorposition – daran hängt beides, Datum und Betrag.
+  function deletedChar(prevValue, el, pos, isBackspace){
+    const prev = String(prevValue == null ? "" : prevValue);
+    return isBackspace && prev.length === el.value.length + 1 ? prev.charAt(pos) : "";
+  }
+
+  // Beträge: Tausenderpunkte schon beim Tippen, Komma und Vorzeichen bleiben stehen.
+  // Dafür type=text statt type=number – in einem Zahlenfeld wäre "55.000" ein
+  // ungültiger Wert und .value käme leer zurück. inputmode=numeric hält den
+  // Ziffernblock auf iOS; das Komma tippt dort niemand, eingefügt wird es trotzdem.
+  // Backspace auf einem Tausenderpunkt nimmt – wie im Datumsfeld – die Ziffer davor
+  // mit. Auf dem Komma nicht: dort ist das Löschen für sich genommen schon wirksam,
+  // die Nachkommastellen rücken in den Euro-Teil ("12,34" → "1.234").
   function maskAmount(el, prevValue, isBackspace){
     const pos = el.selectionStart == null ? el.value.length : el.selectionStart;
-    let d = digitsOf(el.value).slice(0,9);            // 9 Stellen reichen für jedes Einkommen
-    let before = Math.min(digitsOf(el.value.slice(0,pos)).length, d.length);
-    if(isBackspace && before > 0 && d.length === digitsOf(prevValue).length){
-      d = d.slice(0, before-1) + d.slice(before);
+    const p = splitAmount(el.value);
+    let int = p.int, frac = p.frac;
+    let before = Math.min(digitsOf(el.value.slice(0,pos)).length, int.length + (frac ? frac.length : 0));
+    if(deletedChar(prevValue, el, pos, isBackspace) === "." && before > 0 && before <= int.length){
+      int = int.slice(0, before-1) + int.slice(before);
       before--;
     }
-    const lead = (d.match(/^0+(?=\d)/) || [""])[0].length;   // "055000" gruppiert sonst als "055.000"
-    if(lead){ d = d.slice(lead); before = Math.max(0, before - lead); }
-    const out = groupDigits(d);
+    const lead = (int.match(/^0+(?=\d)/) || [""])[0].length;   // "055000" gruppiert sonst als "055.000"
+    if(lead){ int = int.slice(lead); before = Math.max(0, before - lead); }
+    const out = joinAmount({neg:p.neg, int, frac});
     if(out === el.value) return;
     el.value = out;
     setCaretAfterDigits(el, out, before);
@@ -351,12 +449,20 @@
   // zurück und das Feld ließe sich nicht mehr leeren.
   // Backspace direkt auf einen Punkt löscht die Ziffer davor mit, sonst hängt der
   // Cursor am Trennzeichen fest.
-  function maskBirth(el, prevValue, isBackspace){
-    if(/^\d{4}-\d{1,2}-\d{1,2}$/.test(el.value.trim())) return;   // eingefügtes ISO-Datum durchlassen
+  function maskBirth(el, prevValue, inputType){
+    const raw = el.value.trim();
+    if(/^\d{4}-\d{1,2}-\d{1,2}$/.test(raw)) return;   // eingefügtes ISO-Datum durchlassen
+    // Ein am Stück eingefügtes Datum erst parsen, dann falten: "1.1.2020" bringt nur
+    // sechs Ziffern mit, positionell gefaltet würde daraus "11.20.20". Getippt kann so
+    // etwas nicht entstehen – die Punkte setzt die Maske selbst.
+    if(inputType === "insertFromPaste" || digitsOf(raw).length > digitsOf(prevValue).length + 1){
+      const pasted = parseBirth(raw);
+      if(pasted){ el.value = fmtBirth(pasted); return; }
+    }
     const pos = el.selectionStart == null ? el.value.length : el.selectionStart;
     let before = digitsOf(el.value.slice(0,pos)).length;
     let d = digitsOf(el.value);
-    if(isBackspace && before > 0 && d.length === digitsOf(prevValue).length){
+    if(deletedChar(prevValue, el, pos, inputType === "deleteContentBackward") === "." && before > 0){
       d = d.slice(0, before-1) + d.slice(before);
       before--;
     }
@@ -406,7 +512,7 @@
       if(cur <= turns18) u18++;
       else if(c.beihilfe) o18++;
     }
-    return {u18, o18, amount: u18*FB_M_U18 + o18*FB_M_O18,
+    return {u18, o18, cents: u18*FB_M_U18_C + o18*FB_M_O18_C,
             over18Possible: (year*12+11) > turns18};
   }
 
@@ -457,13 +563,12 @@
   const $ = id => document.getElementById(id);
   const childBox = $("children");
 
-  // Betrag je Kind: im Geburtsdatums-Modus gerechnet, sonst die manuelle Auswahl.
-  // Auf volle Euro runden, bevor gerechnet wird: sonst zeigt die Tabelle je Kind
-  // 2.000 + 1.458 und die Summe 3.459 (12 × 166,68 sind 2.000,16).
+  // Betrag je Kind in Cent: im Geburtsdatums-Modus gerechnet, sonst die manuelle Auswahl.
+  // Nicht auf Euro runden – das ist genau die Rundung, die "334 / 333" erzeugt hat.
   function amountFor(c){
-    if(childMode !== "birth") return c.amount || 0;
+    if(childMode !== "birth") return Math.round((c.amount || 0) * 100);
     const r = childYearAmount(c, taxYear);
-    return r ? Math.round(r.amount) : 0;
+    return r ? r.cents : 0;
   }
 
   function calcSummary(c){
@@ -478,22 +583,24 @@
         : `<span class="warn">Datum nicht erkannt – als <b>TT.MM.JJJJ</b> eingeben, z. B. 27.07.2018.</span>`;
     }
     const r = childYearAmount(c, taxYear);
-    if(r.amount < 0.005){
+    if(r.cents === 0){
       return b.y > taxYear
         ? `<span class="warn">${taxYear} noch nicht geboren – kein Familienbonus.</span>`
         : `<span class="warn">Kein Familienbonus ${taxYear} – über 18 ohne Familienbeihilfe.</span>`;
     }
     const parts = [];
-    if(r.u18) parts.push(`${r.u18} × ${eur2(FB_M_U18)}`);
-    if(r.o18) parts.push(`${r.o18} × ${eur2(FB_M_O18)}`);
-    return `Bonus ${taxYear}: <b>${eur(r.amount)}</b> · ${parts.join(" + ")}`;
+    if(r.u18) parts.push(`${r.u18} × ${eurC(FB_M_U18_C)}`);
+    if(r.o18) parts.push(`${r.o18} × ${eurC(FB_M_O18_C)}`);
+    return `Bonus ${taxYear}: <b>${eurC(r.cents)}</b> · ${parts.join(" + ")}`;
   }
 
   function childCalcRow(c,i){
     const r = childYearAmount(c, taxYear);
+    // "durchgehend" steht bewusst dabei: der Rechner kennt keine Bezugsmonate und
+    // rechnet ein halbes Jahr Beihilfe sonst still als ganzes.
     const chk = (r && r.over18Possible)
       ? `<label class="chk"><input type="checkbox" data-i="${i}" data-k="beihilfe" ${c.beihilfe?"checked":""}>
-           <span>Familienbeihilfe nach dem 18. Geburtstag weiter bezogen</span></label>`
+           <span>Familienbeihilfe nach dem 18. Geburtstag <b>durchgehend</b> bezogen</span></label>`
       : "";
     return `<div class="child-calc" id="ch-calc-${i}"><span id="ch-sum-${i}">${calcSummary(c)}</span>${chk}</div>`;
   }
@@ -548,7 +655,7 @@
     if(!k || !Number.isInteger(i) || !children[i]) return;
     // children[i].birth hält hier noch den Stand vor dem Tastendruck – genau das
     // braucht maskBirth(), um ein gelöschtes Trennzeichen zu erkennen.
-    if(k==="birth") maskBirth(el, children[i].birth, e.inputType === "deleteContentBackward");
+    if(k==="birth") maskBirth(el, children[i].birth, e.inputType);
     children[i][k] = k==="amount"   ? +el.value
                    : k==="beihilfe" ?  el.checked
                    :                   el.value;
@@ -571,14 +678,17 @@
   });
 
   // --- optimisation ---
-  function ceilingFor(rawVal){
-    const v = rawVal||0;
-    return inputMode==="tax" ? Math.max(0,v) : tarifsteuer(v);
+  // Aufnahmefähigkeit in Cent. Negatives ist keine Aufnahmefähigkeit von null, sondern
+  // eine ungültige Eingabe – die fängt dataIssues() ab, hier zählt sie nicht mit.
+  function ceilingCents(rawVal){
+    const v = amountVal(rawVal);
+    if(!(v > 0)) return 0;
+    return Math.round((inputMode==="tax" ? v : tarifsteuer(v)) * 100);
   }
-  // Der Anteil je Kind wird auf ganze Euro gerundet, der Rest geht an den anderen
+  // Der Anteil je Kind wird auf ganze Cent gerundet, der Rest geht an den anderen
   // Elternteil. Erst dann wird summiert: sonst zeigt die Aufstellung je Kind bei
-  // 50/50 eines 667-€-Kindes "334 / 334" – also einen Euro mehr, als es zu verteilen
-  // gibt – und die Zeilensumme passt nicht zu "zugeteilt" auf derselben Karte.
+  // 50/50 eines 666,72-€-Kindes "334 / 334" – also mehr, als es zu verteilen gibt –
+  // und die Zeilensumme passt nicht zu "zugeteilt" auf derselben Karte.
   const shareToA = (amt, f) => Math.round(amt*f);
   function evaluate(fractionsToA, amounts, cA, cB){
     let aSum=0, total=0;
@@ -587,8 +697,14 @@
     const used = Math.min(aSum,cA) + Math.min(bSum,cB);
     return {aSum,bSum,total,used,wasted:total-used,fractions:fractionsToA.slice()};
   }
+  // 3^n Brute Force – und der Ausgang hängt nur an Beträgen, Deckeln und den zulässigen
+  // Stufen. Ein Name im Feld ändert davon nichts, löst aber genauso ein compute() aus.
+  // Ein Eintrag Gedächtnis reicht, um genau diese Wiederholung einzusparen.
+  let splitMemo = {key:null, val:null};
   function bestSplit(amounts, cA, cB){
     const opts = effSplit()==="restricted" ? [0.25,0.5,0.75] : [0,0.5,1];
+    const memoKey = opts[0]+"|"+cA+"|"+cB+"|"+amounts.join(",");
+    if(splitMemo.key === memoKey) return splitMemo.val;
     let best=null, maxUsed=-Infinity;
     const n=amounts.length, cur=new Array(n);
     (function rec(i){
@@ -606,6 +722,7 @@
       }
       for(const f of opts){ cur[i]=f; rec(i+1); }
     })(0);
+    splitMemo = {key:memoKey, val:best};
     return best;
   }
   function scenarioBar(r){
@@ -630,7 +747,7 @@
       return `<div class="pc-row">
         <span class="pc-name">${esc(c.label)}</span>
         <span class="pc-share num">${Math.round(f*100)} % / ${Math.round((1-f)*100)} %</span>
-        <span class="pc-eur num">${eur(a)} / ${eur(b)}</span>
+        <span class="pc-eur num">${eurC(a)} / ${eurC(b)}</span>
       </div>`;
     }).join("");
     return `<div class="perchild">
@@ -647,19 +764,54 @@
     liveTimer = setTimeout(()=>{ $("live").textContent = text; }, 700);
   }
 
+  // Fehlende Angaben sind keine bestätigten Nullwerte. In der Rechnung sehen ein leeres
+  // Feld und eine bewusst eingetragene 0 gleich aus – im Ergebnis dürfen sie es nicht:
+  // ohne diese Prüfung stand über einem halb ausgefüllten Formular "der volle Bonus
+  // kommt an". Alles, was hier auftaucht, macht das Ergebnis vorläufig.
+  function dataIssues(){
+    const out = [];
+    const nA = $("nameA").value || "Elternteil A", nB = $("nameB").value || "Elternteil B";
+    [[nA,"valA"],[nB,"valB"]].forEach(([nm,id])=>{
+      const raw = $(id).value;
+      if(amountBad(raw))        out.push(`${nm}: negativer Betrag – daraus lässt sich keine Tarifsteuer bestimmen.`);
+      else if(!hasDigits(raw))  out.push(`${nm}: kein Betrag eingetragen – „leer" ist nicht dasselbe wie 0 €.`);
+    });
+    if(childMode === "birth"){
+      children.forEach(c=>{
+        if(!parseBirth(c.birth)) out.push(`${c.label}: Geburtsdatum fehlt oder ist unvollständig.`);
+      });
+    }
+    return out;
+  }
+
   function compute(){
     const nA=$("nameA").value||"Elternteil A", nB=$("nameB").value||"Elternteil B";
-    const cA=ceilingFor(amountVal($("valA").value)), cB=ceilingFor(amountVal($("valB").value));
+    const cA=ceilingCents($("valA").value), cB=ceilingCents($("valB").value);
     const amounts=children.map(amountFor);
     const total=amounts.reduce((a,b)=>a+b,0);
+    const issues = dataIssues();
+    const prov = issues.length > 0;
 
     // ceilings display
-    $("ceilings").innerHTML = [[nA,cA,$("valA").value],[nB,cB,$("valB").value]].map(([nm,c,raw])=>`
-      <div class="ceil">
+    $("ceilings").innerHTML = [[nA,cA,$("valA").value],[nB,cB,$("valB").value]].map(([nm,c,raw])=>{
+      const src = inputMode==="tax" ? "eingegebene Tarifsteuer"
+                : "Tarifsteuer "+taxYear+" aus "+(hasDigits(raw) ? eur(amountVal(raw)) : "–");
+      return `<div class="ceil">
         <div class="who">${esc(nm)}</div>
-        <div class="big num">${eur(c)}</div>
-        <div class="cap">${inputMode==="tax"?"eingegebene Tarifsteuer":"Tarifsteuer "+taxYear+" aus "+(hasDigits(raw)?eur(amountVal(raw)):"–")}<br>= max. nutzbarer Bonus</div>
-      </div>`).join("");
+        <div class="big num">${amountBad(raw) ? "–" : eurC(c)}</div>
+        <div class="cap">${amountBad(raw) ? '<span class="warn">Betrag nicht verwertbar</span>' : src}<br>= max. nutzbarer Bonus</div>
+      </div>`;
+    }).join("");
+
+    // Was fehlt, steht vor dem Ergebnis – nicht als Fußnote darunter.
+    $("issues").innerHTML = prov
+      ? `<div class="warnbox">
+           <b>Angaben unvollständig – das Ergebnis ist vorläufig.</b>
+           <ul>${issues.map(t=>`<li>${esc(t)}</li>`).join("")}</ul>
+           Fehlendes rechnet dieses Werkzeug als 0 €. Das ist eine Annahme, kein Ergebnis –
+           trag die offenen Werte nach, bevor du etwas ins Formular überträgst.
+         </div>`
+      : "";
 
     // canonical scenarios
     const allA = evaluate(amounts.map(()=>1),amounts,cA,cB);
@@ -691,11 +843,11 @@
         if(!bestShown){ bestName = s.plain; bestR = s.r; }
         bestShown = true;
       }
-      return renderScenario(s.name, s.r, amounts, nA, nB, tag);
+      return renderScenario(s.name, s.r, amounts, nA, nB, tag, prov);
     }).join("");
     if(!bestShown){
       bestName = "Optimale Aufteilung";
-      html = renderScenario("Optimale Aufteilung", best, amounts, nA, nB, "best") + html;
+      html = renderScenario("Optimale Aufteilung", best, amounts, nA, nB, "best", prov) + html;
     }
     $("scenarios").innerHTML = html;
 
@@ -710,29 +862,44 @@
         : `<b>Kein Bonus zu verteilen.</b> Prüf die Beträge je Kind.`;
     } else if(!hasDigits($("valA").value) && !hasDigits($("valB").value)){
       msg = `<b>Trag oben eure Zahlen ein.</b> Ohne Eingabe kann ich die Aufnahmefähigkeit nicht bestimmen.`;
+    } else if(prov){
+      // Keine abschließende Aussage über etwas, das nur zur Hälfte dasteht. Gerechnet
+      // wird trotzdem weiter – ein vorläufiges Zwischenergebnis ist brauchbar, eine
+      // Vollständigkeitsbehauptung darüber nicht.
+      msg = `<b>Vorläufiges Teilergebnis.</b> Unten steht die beste Aufteilung <b>für die bereits
+        eingetragenen Zahlen</b>. Ob der Bonus wirklich ankommt, lässt sich erst sagen, wenn die
+        oben genannten Angaben vollständig sind.`;
     } else if(best.wasted < EPS){
       // Gleichwertig ist jede Aufteilung nur, wenn auch die für einen Elternteil
       // ungünstigste zulässige Zuteilung noch unter seiner Tarifsteuer bleibt.
       const maxShare = effSplit()==="restricted" ? 0.75 : 1;
       if(Math.min(cA,cB) >= maxShare*total - EPS){
-        msg = `Der volle Bonus von <b>${eur(total)}</b> kommt an – und zwar bei <b>jeder</b> zulässigen
+        msg = `Der volle Bonus von <b>${eurC(total)}</b> kommt an – und zwar bei <b>jeder</b> zulässigen
           Aufteilung. Nehmt die, die bei der Veranlagung am praktischsten ist.`;
       } else {
-        msg = `Mit der markierten Aufteilung kommt der volle Bonus von <b>${eur(total)}</b> an – es verpufft nichts.
+        msg = `Mit der markierten Aufteilung kommt der volle Bonus von <b>${eurC(total)}</b> an – es verpufft nichts.
           Das gilt aber <b>nicht</b> für jede Aufteilung: Wer zu viel auf den Elternteil mit der kleineren
           Tarifsteuer schiebt, verschenkt Geld.`;
       }
     } else {
-      msg = `Auch bei der besten zulässigen Aufteilung bleiben <b>${eur(best.wasted)}</b> von
-        <b>${eur(total)}</b> ungenutzt – mehr als <b>${eur(best.used)}</b> ist mit euren Tarifsteuern
+      msg = `Auch bei der besten zulässigen Aufteilung bleiben <b>${eurC(best.wasted)}</b> von
+        <b>${eurC(total)}</b> ungenutzt – mehr als <b>${eurC(best.used)}</b> ist mit euren Tarifsteuern
         nicht herauszuholen.
         Prüft für den Elternteil mit der geringeren Steuer zusätzlich den <b>Kindermehrbetrag</b>
         (Negativsteuer, bis 700 €/Kind) – der greift genau dann, wenn kaum Tarifsteuer da ist.`;
     }
     if(effSplit()==="restricted"){
-      msg += `<br><br>Die Aufteilungspflicht selbst steht fest (Budgetbegleitgesetz 2027–2028,
-        BGBl. I Nr. 62/2026). Die <b>Tarifstufen 2027</b> sind noch nicht kundgemacht –
-        gerechnet wird hier mit den Stufen ${taxYear}.`;
+      // F09: Der Modus rechnet nicht "2027". Er rechnet die Aufteilungsstufen von 2027
+      // mit Tarif, Kinderbeträgen und Altersstand des gewählten Jahres – das gehört
+      // dazugesagt, sonst liest sich eine Simulation wie eine Veranlagung.
+      msg += `<br><br><b>Simulation, keine Veranlagung 2027.</b> Fest steht nur die Aufteilungspflicht
+        (Budgetbegleitgesetz 2027–2028, BGBl. I Nr. 62/2026). Gerechnet wird mit den <b>Tarifstufen
+        ${taxYear}</b> – die für 2027 sind noch nicht kundgemacht – und mit den Kinderbeträgen und
+        dem Alter des Jahres ${taxYear}. Ein Kind, das zwischen ${taxYear} und 2027 volljährig wird,
+        steht hier deshalb zu hoch.`;
+      msg += `<br><br>Die Pflicht setzt <b>zwei anspruchsberechtigte Personen</b> voraus. Steht der
+        Bonus nur einer Person zu, bleiben 100 % möglich – ein leeres oder niedriges Einkommen des
+        zweiten Elternteils ist dafür aber kein Nachweis.`;
     }
     $("dynNote").innerHTML = msg;
     $("splitHint").innerHTML = splitHintText();   // hängt an Geburtsdaten und Steuerjahr
@@ -744,19 +911,23 @@
       const pA = Math.round(bestR.fractions[0]*100);
       const wie = uniform ? `${nA} ${pA} Prozent, ${nB} ${100-pA} Prozent`
                           : "Aufteilung je Kind unterschiedlich";
-      liveText = `Empfehlung: ${bestName}, ${wie}. `
-               + `Genutzt ${eur(bestR.used)} von ${eur(total)}, verpufft ${eur(bestR.wasted)}.`;
+      liveText = (prov ? `Vorläufig, Angaben unvollständig. ` : "")
+               + `Empfehlung: ${bestName}, ${wie}. `
+               + `Genutzt ${eurC(bestR.used)} von ${eurC(total)}, verpufft ${eurC(bestR.wasted)}.`;
     }
     announce(liveText);
     saveState();          // jede Änderung läuft durch compute() – ein Haken reicht
+    dropStateHash();      // ... und macht damit einen stehen gebliebenen Link veraltet
   }
 
   // tag: "best" (genau einmal pro Durchlauf), "equal" (gleich gut, aber nicht die
-  // empfohlene Karte) oder null.
-  function renderScenario(name, r, amounts, nA, nB, tag){
-    const flag = tag==="best"  ? '<span class="flag">Empfohlen</span>'
+  // empfohlene Karte) oder null. prov: die Datenlage trägt keine Empfehlung – dann
+  // heißt die Fahne "vorläufig" und die Karte wird nicht hervorgehoben.
+  function renderScenario(name, r, amounts, nA, nB, tag, prov){
+    const flag = tag==="best"  ? (prov ? '<span class="flag prov">vorläufig</span>'
+                                       : '<span class="flag">Empfohlen</span>')
                : tag==="equal" ? '<span class="flag alt">gleichwertig</span>' : '';
-    return `<div class="scenario${tag==="best"?" best":""}">
+    return `<div class="scenario${tag==="best" ? (prov ? " prov" : " best") : ""}">
       ${flag}
       <div class="sc-top">
         <span class="sc-name">${name}</span>
@@ -764,10 +935,10 @@
       </div>
       ${scenarioBar(r)}
       <div class="sc-figs">
-        <div class="fig used">genutzt<b class="num">${eur(r.used)}</b></div>
-        <div class="fig waste">verpufft<b class="num">${eur(r.wasted)}</b></div>
-        <div class="fig">${esc(nA)} zugeteilt<b class="num">${eur(r.aSum)}</b></div>
-        <div class="fig">${esc(nB)} zugeteilt<b class="num">${eur(r.bSum)}</b></div>
+        <div class="fig used">genutzt<b class="num">${eurC(r.used)}</b></div>
+        <div class="fig waste">verpufft<b class="num">${eurC(r.wasted)}</b></div>
+        <div class="fig">${esc(nA)} zugeteilt<b class="num">${eurC(r.aSum)}</b></div>
+        <div class="fig">${esc(nB)} zugeteilt<b class="num">${eurC(r.bSum)}</b></div>
       </div>
       ${perChildTable(r,amounts,nA,nB)}
     </div>`;
@@ -780,42 +951,74 @@
     $("labA").textContent = $("labB").textContent = inc ? "Steuerpfl. Jahreseinkommen (Tarif)" : "Tarifsteuer / Jahr";
     $("valA").placeholder = inc ? "z. B. 55.000" : "z. B. 11.500";
     $("valB").placeholder = inc ? "z. B. 32.000" : "z. B. 4.200";
+    // KZ 245 ist der Ausgangswert, nicht das Ergebnis: Werbungskosten (mindestens das
+    // Pauschale von 132 €), Sonderausgaben und außergewöhnliche Belastungen gehen noch
+    // ab. Wer die Kennzahl ungekürzt einträgt, bekommt eine zu hohe Aufnahmefähigkeit
+    // (bei 20.000 € rund 26 € zu viel) – deshalb steht hier nicht bloß "≈ KZ 245".
     $("modeHint").innerHTML = inc
-      ? 'Am L16 ≈ <b>KZ 245</b> (steuerpflichtige laufende Bezüge, ohne 13./14.). Ich rechne daraus die Tarifsteuer nach den Stufen '+taxYear+'.'
-      : 'Wenn du die Tarifsteuer auf die laufenden Bezüge schon kennst, gib sie direkt ein – das ist am genauesten.';
+      ? 'Gemeint ist das <b>steuerpflichtige Einkommen</b> nach allen Abzügen (Werbungskosten – mindestens '
+        + 'das Pauschale von 132 € –, Sonderausgaben, außergewöhnliche Belastungen). <b>KZ 245</b> vom L16 '
+        + 'ist der <b>Ausgangswert</b> dafür, nicht schon das Ergebnis; bei mehreren Lohnzetteln sind es alle '
+        + 'zusammen. Daraus rechne ich die Tarifsteuer nach den Stufen ' + taxYear + '.'
+      : 'Wenn du die Tarifsteuer auf die laufenden Bezüge schon kennst (ohne 13./14.), gib sie direkt ein – '
+        + 'das ist am genauesten. Die Zahlen der beiden Eingabearten werden <b>getrennt</b> gehalten: '
+        + 'Einkommen und Tarifsteuer sind nicht dasselbe, deshalb wird beim Umschalten nichts umgedeutet.';
     $("eyebrow").textContent = "§ 33 EStG · Kalenderjahr " + taxYear;
     $("footYear").textContent = "Tarif " + taxYear;
     $("childModeHint").innerHTML = childMode==="birth"
       ? `Einfach <b>27072018</b> tippen – die Punkte setze ich. Daraus rechne ich den
-         Monatsanteil für ${taxYear}: <b>${eur2(FB_M_U18)}</b> pro Monat bis einschließlich des Monats,
-         in dem das Kind 18 wird, danach <b>${eur2(FB_M_O18)}</b> – solange Familienbeihilfe bezogen wird.`
-      : `Pauschal ${eur(FB_U18)} bzw. ${eur(FB_O18)} pro Jahr. Im Jahr des 18. Geburtstags stimmt beides nicht
-         genau – dafür ist der Geburtsdatums-Modus da.`;
+         Monatsanteil für ${taxYear}: <b>${eurC(FB_M_U18_C)}</b> pro Monat bis einschließlich des Monats,
+         in dem das Kind 18 wird, danach <b>${eurC(FB_M_O18_C)}</b> – solange Familienbeihilfe bezogen wird.
+         Unterstellt ist <b>durchgehender Bezug</b> der Familienbeihilfe; für einzelne Bezugsmonate
+         (z. B. Ende der Ausbildung) ist dieser Rechner nicht gedacht.`
+      : `Pauschal ${eur(FB_U18)} bzw. ${eur(FB_O18)} pro Jahr – gerundete Jahreswerte, genau sind es
+         ${eurC(12*FB_M_U18_C)} bzw. ${eurC(12*FB_M_O18_C)}. Im Jahr des 18. Geburtstags stimmt beides
+         nicht genau – dafür ist der Geburtsdatums-Modus da.`;
   }
 
+  // Was gerechnet wird, und was der Text darüber behauptet, muss dasselbe sein. Der
+  // manuelle Modus übersteuert die Ausnahme für erhöhte Familienbeihilfe – dann darf
+  // hier nicht "freie Wahl bleibt erhalten" stehen, während 25:75 optimiert wird.
   function splitHintText(){
     const eff = effSplit();
     const wie = eff==="restricted" ? "Pflicht 25:75 / 50:50" : "freie Wahl";
+    // Was "Automatisch" ergäbe – nur so lässt sich sagen, ob der manuelle Modus davon
+    // abweicht und das Ergebnis deshalb eine Simulation ist.
+    const autoRule = (function(){
+      if(taxYear < 2027) return "free";
+      if(erhFB) return "free";
+      if(childMode !== "birth") return "unknown";
+      const st = ruleForYear(taxYear).state;
+      return st === "restricted" ? "restricted" : st === "unknown" ? "unknown" : "free";
+    })();
     const kopf = splitMode==="auto"
       ? `Automatisch für ${taxYear}: <b>${wie}</b>.`
       : `Manuell gesetzt: <b>${wie}</b>.`;
+    const abweichung = splitMode !== "auto" && autoRule !== "unknown" && autoRule !== eff
+      ? ` <b>Das weicht von der Regel für ${taxYear} ab</b> (dort: ${autoRule==="restricted"
+          ? "Pflicht 25:75 / 50:50" : "freie Wahl"}) – gerechnet wird trotzdem so, als Simulation.`
+      : "";
 
     if(erhFB){
+      const folge = eff === "restricted"
+        ? `Rechtlich bliebe dem Haushalt damit die <b>freie Wahl</b>; gerechnet wird hier trotzdem
+           mit den Pflichtstufen, weil der Modus manuell gesetzt ist.`
+        : `Die freie Wahl bleibt dem Haushalt also erhalten.`;
       return `${kopf} Für ein Kind im Haushalt wird erhöhte Familienbeihilfe bezogen – es ist einem
-              Kind unter 4 gleichgestellt, die freie Wahl bleibt dem Haushalt also erhalten.`;
+              Kind unter 4 gleichgestellt. ${folge}`;
     }
     if(childMode!=="birth" || allBirths().some(b=>!b)){
-      return `${kopf} Ohne vollständige Geburtsdaten kann ich die Altersbedingung nicht prüfen –
-              ab 2027 musst du den Modus selbst wählen.`;
+      return `${kopf}${abweichung} Ohne vollständige Geburtsdaten kann ich die Altersbedingung nicht
+              prüfen – ab 2027 musst du den Modus selbst wählen.`;
     }
     const f = firstRestrictedYear();
     const übergang = Math.floor(f.key/10000);
     // Liegt der letzte 4. Geburtstag vor 2027, ist nicht er der Grund für den
     // Starttermin, sondern der Beginn der Regel selbst – dann kein Datum nennen.
     let s = f.year > 2027
-      ? `${kopf} Nach den Geburtsdaten greift die Pflicht ab <b>${f.year}</b> –
+      ? `${kopf}${abweichung} Nach den Geburtsdaten greift die Pflicht ab <b>${f.year}</b> –
          ${esc(children[f.idx].label)} wird am ${f.text} vier.`
-      : `${kopf} Nach den Geburtsdaten greift die Pflicht ab <b>2027</b>, dem ersten Jahr der
+      : `${kopf}${abweichung} Nach den Geburtsdaten greift die Pflicht ab <b>2027</b>, dem ersten Jahr der
          neuen Regel – alle Kinder haben das 4. Lebensjahr bis dahin vollendet.`;
     if(übergang >= 2027 && f.key%10000 !== 101){
       s += ` Im Übergangsjahr ${übergang} ist aus den Materialien nicht eindeutig, ob die Pflicht
@@ -843,6 +1046,21 @@
                na:$("nameA").value, nb:$("nameB").value, kids:children.length};
   const kidLabel = i => "Kind " + (i+1);
 
+  // Dieselbe Zahl heißt je Eingabeart etwas anderes: 20.000 € Einkommen sind nicht
+  // 20.000 € Tarifsteuer. Beim Umschalten wurden die Felder bisher einfach stehen
+  // gelassen – aus einem Einkommen wurde damit unbemerkt eine Steuer. Die Werte werden
+  // deshalb je Art geparkt und beim Zurückschalten unverändert wiedergeholt;
+  // umgerechnet wird nichts, das wäre nur eine andere Art zu raten.
+  const parked = {income:{a:"",b:""}, tax:{a:"",b:""}};
+  const parkValues = mode => { parked[mode] = {a:$("valA").value, b:$("valB").value}; };
+  function switchInputMode(next){
+    if(next === inputMode) return;
+    parkValues(inputMode);
+    inputMode = next;
+    $("valA").value = parked[next].a;
+    $("valB").value = parked[next].b;
+  }
+
   // Im Link steht das Datum als reine Ziffernfolge (27072018) – parseBirth() kennt das
   // Format ohnehin, und es spart je Kind zwei Zeichen. Unlesbares bleibt, wie es ist:
   // ein halb getippter Stand soll auch teilbar sein.
@@ -867,8 +1085,10 @@
     put("ef", erhFB ? "1" : "0", "0");
     put("na", $("nameA").value.slice(0,MAX_TEXT), DEF.na);
     put("nb", $("nameB").value.slice(0,MAX_TEXT), DEF.nb);
-    if(hasDigits($("valA").value)) p.set("a", digitsOf($("valA").value));
-    if(hasDigits($("valB").value)) p.set("b", digitsOf($("valB").value));
+    // Cent kommen als Punkt mit ("1234.56"), die Gruppierung bleibt draußen – im Link
+    // steht der Wert, nicht seine Schreibweise.
+    if(hasDigits($("valA").value)) p.set("a", amountToLink($("valA").value));
+    if(hasDigits($("valB").value)) p.set("b", amountToLink($("valB").value));
     put("k", children.length, DEF.kids);
     // Eine Kind-Spalte kommt nur mit, wenn mindestens ein Kind vom Default abweicht –
     // dann aber vollständig. Lückenhaft ginge nicht: die Zuordnung läuft über die Position.
@@ -905,8 +1125,13 @@
     erhFB     = p.get("ef") === "1";
     $("nameA").value = p.has("na") ? p.get("na").slice(0,MAX_TEXT) : DEF.na;
     $("nameB").value = p.has("nb") ? p.get("nb").slice(0,MAX_TEXT) : DEF.nb;
-    $("valA").value  = p.has("a")  ? groupDigits(digitsOf(p.get("a")).slice(0,9)) : "";
-    $("valB").value  = p.has("b")  ? groupDigits(digitsOf(p.get("b")).slice(0,9)) : "";
+    $("valA").value  = p.has("a")  ? amountFromLink(p.get("a")) : "";
+    $("valB").value  = p.has("b")  ? amountFromLink(p.get("b")) : "";
+    // Der Link kennt nur die aktive Eingabeart. Der geparkte Stand der anderen stammt
+    // aus einer anderen Sitzung und wäre nach dem Import genau die stille Umdeutung,
+    // die parkValues() verhindern soll.
+    parked.income = {a:"", b:""}; parked.tax = {a:"", b:""};
+    parked[inputMode] = {a:$("valA").value, b:$("valB").value};
 
     // Fehlende Spalten sind kein Fehler, sondern der Normalfall: sie stehen für
     // "alle Kinder auf Default". Die Anzahl kommt dann aus "k".
@@ -947,9 +1172,30 @@
   // den Rechner scheitern zu lassen.
   const readStore = () => { try { return localStorage.getItem(STORE_KEY) || ""; } catch(e){ return ""; } };
   let saveTimer = null;
+  function saveNow(){
+    clearTimeout(saveTimer);
+    try { localStorage.setItem(STORE_KEY, buildQuery()); } catch(e){}
+  }
   function saveState(){
     clearTimeout(saveTimer);
-    saveTimer = setTimeout(()=>{ try { localStorage.setItem(STORE_KEY, buildQuery()); } catch(e){} }, 400);
+    saveTimer = setTimeout(saveNow, 400);
+  }
+
+  // Ein Hash ist eine Momentaufnahme: der geöffnete oder gerade kopierte Link. Bleibt
+  // er in der Adresse stehen, gewinnt er beim nächsten Reload gegen den inzwischen
+  // geänderten und gespeicherten Stand – wer einen 20.000-€-Link öffnete, auf 30.000
+  // korrigierte und neu lud, sah wieder 20.000. Der Stand wandert deshalb sofort in den
+  // Speicher, und der Hash verschwindet aus der Adresse. Fremde Hashes (Sprungziele
+  // wie #sec-ergebnis) bleiben unangetastet.
+  function dropStateHash(){
+    const h = location.hash.slice(1);
+    if(!h || !hasStateKeys(h)) return;
+    saveNow();
+    try { history.replaceState(null, "", location.href.split("#")[0]); } catch(e){}
+  }
+  function hasStateKeys(q){
+    try { const p = new URLSearchParams(q); return LINK_KEYS.some(k => p.has(k)); }
+    catch(e){ return false; }
   }
 
   let flashTimer = null;
@@ -980,7 +1226,7 @@
   }
   // Der Betrag je Kind hängt am Steuerjahr, die Rechenzeilen müssen also mit.
   wireSeg("taxYear",   b => { taxYear   = +b.dataset.year; refreshAllCalc(); });
-  wireSeg("inputMode", b => { inputMode =  b.dataset.mode;  });
+  wireSeg("inputMode", b => { switchInputMode(b.dataset.mode); });
   wireSeg("splitMode", b => { splitMode =  b.dataset.split; });
   wireSeg("childMode", b => { childMode =  b.dataset.cmode; renderChildren(); });
 
@@ -1035,9 +1281,15 @@
     flash("Werte aus dem Link übernommen.");
   });
 
-  $("storeHint").innerHTML = `Die Eingaben bleiben in <b>diesem Browser</b> gespeichert – nichts wird
-    übertragen, „Zurücksetzen" löscht sie. Im Link stehen die Werte hinter dem <b>#</b>: dieser Teil
-    geht an keinen Server, landet aber im Verlauf desjenigen, der ihn öffnet.`;
+  // "Nichts wird übertragen" stimmt für die Rechnung, nicht für die Seite: die Schriften
+  // kommen von Google Fonts, dabei sieht Google die IP-Adresse. Und der gespeicherte
+  // Stand liegt unverschlüsselt im Browserprofil, für jede Seite derselben Origin lesbar.
+  $("storeHint").innerHTML = `<b>Eure Zahlen bleiben hier.</b> Gerechnet wird ausschließlich in
+    diesem Browser, die Eingaben liegen unverschlüsselt in seinem Speicher (auf einem geteilten
+    Gerät also mitlesbar) – „Zurücksetzen" löscht sie. Im Link stehen die Werte hinter dem <b>#</b>:
+    dieser Teil geht an keinen Server, landet aber im Verlauf desjenigen, der ihn öffnet.
+    Nachgeladen wird nur die Schrift (Google Fonts) – dabei sieht Google die IP-Adresse,
+    aber keine Eingabe.`;
 
   // Reihenfolge: erst der Link (jemand hat ihn absichtlich geöffnet), sonst der
   // gespeicherte Stand.
@@ -1047,6 +1299,30 @@
   renderChildren();
   compute();
   if(fromLink) flash("Werte aus dem Link übernommen.");
+
+  // Testhaken für tests/run.mjs. Ohne Build und ohne Framework führt daran kein Weg
+  // vorbei: die Rechenkerne liegen in dieser Closure, und aufgeteilt werden darf die
+  // Datei nicht. Im Browser ist window.__FB_TEST nicht gesetzt – dann bleibt hier alles
+  // privat, es hängt nichts am globalen Objekt.
+  if(typeof window !== "undefined" && window.__FB_TEST){
+    window.__FB_TEST = {
+      tarifsteuer, parseBirth, fmtBirth, childYearAmount, amountFor,
+      splitAmount, joinAmount, amountVal, amountBad, amountToLink, amountFromLink,
+      maskAmount, maskBirth, ceilingCents, evaluate, bestSplit, shareToA,
+      ruleForYear, effSplit, firstRestrictedYear, splitHintText, dataIssues,
+      buildQuery, applyQuery, compute, renderChildren, refreshLabels, saveNow,
+      switchInputMode, eur, eurC, esc, BRACKETS_BY_YEAR, MAX_CHILDREN,
+      state: () => ({taxYear, inputMode, childMode, splitMode, erhFB, children}),
+      set: o => {
+        if(o.taxYear   != null) taxYear   = o.taxYear;
+        if(o.inputMode != null) inputMode = o.inputMode;
+        if(o.childMode != null) childMode = o.childMode;
+        if(o.splitMode != null) splitMode = o.splitMode;
+        if(o.erhFB     != null) erhFB     = o.erhFB;
+        if(o.children)  { children.length = 0; o.children.forEach(c=>children.push(c)); }
+      }
+    };
+  }
 })();
 </script>
 </body>

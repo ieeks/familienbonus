@@ -15,12 +15,21 @@ der ab **2027** geltenden Aufteilungspflicht (25:75 / 50:50).
 - **Steuerjahr** wählbar: 2024, 2025 oder 2026 (eigene Tarifstufen je Jahr).
 - Eingabe je Elternteil: **steuerpflichtiges Jahreseinkommen (Tarif)** → Tarifsteuer
   wird berechnet; alternativ **Tarifsteuer direkt** eingeben (am genauesten, wenn vom L16 bekannt).
+  Gemeint ist das Einkommen **nach** Werbungskosten (mindestens 132 € Pauschale),
+  Sonderausgaben und außergewöhnlichen Belastungen – KZ 245 vom L16 ist der Ausgangswert
+  dafür, nicht schon das Ergebnis. Die beiden Eingabearten werden getrennt gehalten:
+  beim Umschalten wird keine Zahl umgedeutet.
 - Eingabehilfen: das Einkommen bekommt beim Tippen **Tausenderpunkte** (55000 → 55.000),
   das Geburtsdatum die **Punkte automatisch** (27072018 → 27.07.2018) – auf der
   iOS-Zifferntastatur gibt es keinen Punkt.
 - Bis zu **12 Kinder**, wahlweise per **Geburtsdatum** (tippbar als TT.MM.JJJJ, monatsgenau: 166,68 € bis
   einschließlich des Monats des 18. Geburtstags, danach 58,34 € mit Familienbeihilfe)
   oder pauschal mit 2.000 € / 700 € pro Jahr.
+- **Centgenau**: gerechnet wird intern in ganzen Cent, angezeigt wird, was herauskommt
+  (12 × 166,68 = 2.000,16 €). Bei 50/50 bekommen beide Elternteile denselben Betrag.
+- **Unvollständige Angaben sperren die Empfehlung**: fehlt ein Geburtsdatum oder ein
+  Elternbetrag, steht das über dem Ergebnis, und die Karte heißt „vorläufig" statt
+  „Empfohlen". Eine bewusst eingetragene 0 bleibt ein gültiger Fall.
 - Zwei Modi: **freie Wahl** (bis 2026) und **Aufteilungspflicht ab 2027**, plus ein
   Häkchen für **erhöhte Familienbeihilfe** – damit behält der Haushalt auch ab 2027
   die freie Wahl.
@@ -28,8 +37,10 @@ der ab **2027** geltenden Aufteilungspflicht (25:75 / 50:50).
   die **Zuteilung je Kind**, also das, was tatsächlich ins Formular kommt.
 - **Teilbarer Link**: „Link zum Teilen kopieren" nimmt den kompletten Stand mit, damit ihn
   der andere Elternteil öffnen kann. Die Werte stehen hinter dem `#` – dieser Teil einer
-  URL wird an keinen Server geschickt. Im Link steht nur, was vom Default abweicht, der
-  übliche Fall bleibt bei rund 80 Zeichen:
+  URL wird an keinen Server geschickt. Nach dem Öffnen wandert der Stand in den lokalen
+  Speicher und der Hash verschwindet aus der Adresse – sonst würde ein alter Link beim
+  nächsten Reload gegen die inzwischen geänderten Eingaben gewinnen.
+  Im Link steht nur, was vom Default abweicht, der übliche Fall bleibt bei rund 80 Zeichen:
   `…/familienbonus/#a=55000&b=32000&cb=27072018&cb=11052022`. Ein Shortener-Dienst ist
   bewusst nicht eingebaut – der müsste die Daten speichern.
 - **Eingaben bleiben erhalten** (im Browser, `localStorage`); ein Reload kostet nichts.
@@ -45,9 +56,10 @@ den Bonus nicht – daher hier bewusst ausgeklammert.
 
 Pro Elternteil gilt als „Aufnahmefähigkeit": **Tarifsteuer(Einkommen)**. Verteilt wird so,
 dass `min(zugeteilt_A, Steuer_A) + min(zugeteilt_B, Steuer_B)` maximal wird – über alle
-Kinder **gemeinsam** optimiert, weil beide Deckel für alle Kinder zusammen gelten. Der
-Anteil je Kind wird dabei einmal auf ganze Euro gerundet; die Aufstellung je Kind, die
-Spaltensummen und „genutzt/verpufft" stammen daher aus derselben Rechnung.
+Kinder **gemeinsam** optimiert, weil beide Deckel für alle Kinder zusammen gelten.
+Gerechnet wird in ganzen Cent; der Anteil je Kind wird genau einmal gerundet, der Rest
+geht an den anderen Elternteil. Die Aufstellung je Kind, die Spaltensummen und
+„genutzt/verpufft" stammen damit aus derselben Rechnung.
 
 **Tarifstufen je Jahr** (Obergrenze der Stufe, BMF; Werte in `BRACKETS_BY_YEAR`):
 
@@ -84,6 +96,21 @@ weist im UI darauf hin.
 Weil die Aufteilung gestuft ist, heißt „beide Ceilings zusammen ≥ Gesamtbonus" **nicht**,
 dass nichts verpufft – maßgeblich ist immer die beste erreichbare Aufteilung.
 
+## Wofür der Rechner gilt
+
+Bewusst begrenzt – was er nicht kann, steht auch im Tool selbst neben dem Ergebnis:
+
+- **Zwei ganzjährig anspruchsberechtigte Elternteile** für dieselben Kinder. Getrennt
+  lebende Eltern mit Unterhaltsabsetzbetrag, Alleinerziehende und ein Wechsel der
+  Berechtigung im Jahr sind nicht abgebildet; steht der Bonus nur einer Person zu, bleiben
+  100 % möglich – auch ab 2027.
+- **Durchgehende Familienbeihilfe** für alle Monate mit Anspruch. Einzelne Bezugsmonate
+  (Ende der Ausbildung) erfasst der Rechner nicht und rechnet solche Fälle zu hoch.
+- **Einkommen nach allen Abzügen**, siehe oben.
+- **„Pflicht ab 2027" ist eine Simulation**: 2027 ist als Steuerjahr nicht wählbar, die
+  Tarifstufen dafür sind nicht kundgemacht. Gerechnet wird mit Tarif, Kinderbeträgen und
+  Alter des gewählten Jahres.
+
 > Vereinfachte Modellrechnung, **keine Steuerberatung**. Kindermehrbetrag (Negativsteuer,
 > 700 €/Kind seit 2024, Valorisierung bis inkl. 2028 ausgesetzt) für Geringverdiener
 > separat prüfen – er ist hier bewusst nicht modelliert, weil er kein Absetzbetrag gegen
@@ -92,7 +119,20 @@ dass nichts verpufft – maßgeblich ist immer die beste erreichbare Aufteilung.
 ## Tech
 
 Single-file HTML, keine Dependencies, kein Build. IBM Plex (Sans/Serif/Mono) via
-Google Fonts. Läuft direkt auf GitHub Pages.
+Google Fonts (dabei sieht Google die IP-Adresse – Eingaben verlassen den Browser nicht).
+Läuft direkt auf GitHub Pages.
+
+## Tests
+
+```
+node tests/run.mjs
+```
+
+145 Regressionstests, ohne Framework und ohne Build: Tarifgrenzen, Beträge mit Cent,
+Geburtsmonate, Rundung je Kind, Optimalität gegen eine unabhängige Suche,
+Vollständigkeitssperre, Link-Fixpunkt und Fremdeingabe, Hash-/Speicher-Reihenfolge,
+Moduswechsel. `tests/dom.mjs` lädt `index.html` dafür in eine nachgebaute DOM-Umgebung;
+ausgeliefert wird weiterhin nur die eine Datei. Läuft auch in GitHub Actions.
 
 ## Deployment
 
@@ -107,6 +147,9 @@ legen → gleiche URL, ein Repo weniger.
 ```
 index.html        Rechner (alles inkl.)
 icon.svg          Line-Icon (currentColor)
+tests/run.mjs     Regressionstests (node tests/run.mjs)
+tests/dom.mjs     minimale DOM-Nachbildung für die Tests
+.github/          Workflow, der die Tests bei jedem Push ausführt
 README.md         dieses File
 CHANGELOG.md      Versionshistorie
 TODO.md           offene Ideen
