@@ -27,6 +27,10 @@ der ab **2027** geltenden Aufteilungspflicht (25:75 / 50:50).
   oder pauschal mit 2.000 € / 700 € pro Jahr.
 - **Centgenau**: gerechnet wird intern in ganzen Cent, angezeigt wird, was herauskommt
   (12 × 166,68 = 2.000,16 €). Bei 50/50 bekommen beide Elternteile denselben Betrag.
+- **Beträge werden gelesen, nicht geraten**: eingefügte Formate (`1.234,56`, `1234.56`,
+  `1234.56 €`, auch mit typografischem Minus) werden erkannt und normalisiert. Was sich
+  nicht eindeutig lesen lässt, bleibt stehen und wird als unverwertbar gemeldet, statt
+  still zu einem anderen Betrag zu werden.
 - **Unvollständige Angaben sperren die Empfehlung**: fehlt ein Geburtsdatum oder ein
   Elternbetrag, steht das über dem Ergebnis, und die Karte heißt „vorläufig" statt
   „Empfohlen". Eine bewusst eingetragene 0 bleibt ein gültiger Fall.
@@ -128,9 +132,10 @@ Läuft direkt auf GitHub Pages.
 node tests/run.mjs
 ```
 
-145 Regressionstests, ohne Framework und ohne Build: Tarifgrenzen, Beträge mit Cent,
-Geburtsmonate, Rundung je Kind, Optimalität gegen eine unabhängige Suche,
-Vollständigkeitssperre, Link-Fixpunkt und Fremdeingabe, Hash-/Speicher-Reihenfolge,
+194 Regressionstests, ohne Framework und ohne Build: Tarifgrenzen, Beträge mit Cent,
+Geburtsmonate, Rundung je Kind, Optimalität gegen eine unabhängige Suche (Kinderzahlen
+1 bis 6, Deckel gezielt an den erreichbaren Summen), Eingabemasken beim Löschen und
+Einfügen, Vollständigkeitssperre, Link-Fixpunkt und Fremdeingabe, Hash-/Speicher-Reihenfolge,
 Moduswechsel. `tests/dom.mjs` lädt `index.html` dafür in eine nachgebaute DOM-Umgebung;
 ausgeliefert wird weiterhin nur die eine Datei. Läuft auch in GitHub Actions.
 

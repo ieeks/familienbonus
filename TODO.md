@@ -105,6 +105,10 @@ Wer sie angeht, muss den Geltungsbereich-Block im Ergebnis mitziehen.
 - [x] **Regressionstests** (`node tests/run.mjs`), ohne Framework und ohne Build, plus
       GitHub-Actions-Workflow. Neue Rechen- oder Zustandsfehler gehören dort als Fall
       hinein, bevor sie behoben werden.
+- [x] **Nachreview zu PR #8 (N01–N03)** abgearbeitet: Backspace-Regression im Betragsfeld,
+      stille Annahme ungültiger Formate, Mehrkind-Abdeckung der Optimierungstests.
+      Die Zufallsfälle würfeln die Kinderzahl nicht mehr aus, sie laufen sie durch –
+      vorher hatten 796 von 800 Fällen genau ein Kind.
 - [ ] **Browser-Test automatisieren.** Die Tests laufen gegen eine nachgebaute
       DOM-Umgebung; Layout, iOS-Tastatur und Clipboard bleiben Handarbeit (Checkliste in
       CLAUDE.md).

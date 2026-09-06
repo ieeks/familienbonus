@@ -90,6 +90,32 @@ L16-Helfer, vollständige 2027-Veranlagung) bleiben bewusst offen und stehen im 
   für die Seite: die Schriften kommen von Google Fonts (IP-Adresse), und der gespeicherte
   Stand liegt unverschlüsselt im Browserprofil.
 
+### Nachgezogen nach dem Nachreview zu PR #8 (N01–N03)
+
+- **N01 – Backspace machte aus 55.000 € plötzlich 55 €.** Eine Regression aus der
+  F01-Korrektur: die Erkennung des englischen Dezimalpunkts („12.34") steckte in
+  `splitAmount()` – also in genau dem Parser, der auch den eigenen Feldinhalt liest.
+  Nach dem Löschen der letzten Ziffer steht „55.000" kurz als „55.00" im Feld, und der
+  Parser las das als 55,00. Die beiden Zuständigkeiten sind jetzt getrennt:
+  `splitAmount()` liest **eigenen** Feldinhalt, wo ein Punkt immer Tausenderpunkt ist;
+  `parseAmountText()` liest **eingefügten** Text, und nur dort darf ein Punkt ein
+  Dezimalpunkt sein. „55.000" → Backspace → „5.500", „1.234" → „123", „12.345" → „1.234".
+  Entf auf einem Tausenderpunkt nimmt jetzt spiegelbildlich die Ziffer dahinter mit.
+- **N02 – ungültige Formate wurden still zu gültigen Beträgen.** „−500" mit
+  typografischem Minus wurde +500, „12abc34" wurde 1.234 €, „1234.56 €" wurde
+  123.456 €. Eingefügter Text wird jetzt als Ganzes geprüft: erkannt und normalisiert
+  (auch mit Währungssuffix, geschützten Leerzeichen und typografischem Minus) – oder
+  **unverändert stehen gelassen** und als unverwertbar gemeldet. Weitertippen glättet
+  Unlesbares nicht nachträglich zu einer Zahl. Ein unverwertbarer Betrag ergibt keinen
+  Deckel, keine Empfehlung und steht auch nicht im Link. Mehrdeutiges wie „1,234"
+  (englischer Tausender oder drei Nachkommastellen?) wird abgelehnt statt geraten.
+- **N03 – die Zufallstests prüften fast nur ein Kind.** Von 800 Fällen hatten 796 genau
+  ein Kind, keiner mehr als drei – die gemeinsame Optimierung über mehrere Kinder war
+  damit kaum abgesichert. Die Kinderzahl wird jetzt explizit durchlaufen (1 bis 6, beide
+  Aufteilungsmodi, je rund 300 Fälle) und die Deckel gezielt knapp unter, genau auf und
+  knapp über die erreichbaren Summen gelegt – dort entscheidet sich die Aufteilung.
+  N01 und N02 sind als dauerhafte Regressionen dazugekommen: 194 Prüfungen statt 145.
+
 ### Geprüft, unverändert
 
 - Tarifstufen 2024–2026 und die Grenzsteuersätze an jeder Stufe (im Review gegen die

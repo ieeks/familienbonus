@@ -364,31 +364,52 @@
 
   // Ein Betrag ist nicht "alle Ziffern hintereinander". Wer das so liest, macht aus
   // "1.234,56" die Zahl 123456 und aus "-500" die Zahl 500 – beides stillschweigend,
-  // beides um Größenordnungen daneben. Zerlegt wird deshalb in Vorzeichen, Euro und
-  // Cent; was danach übrig bleibt, ist ein echter Wert oder ein sichtbarer Fehler.
+  // beides um Größenordnungen daneben.
   //
-  // Dezimaltrennzeichen ist das Komma (AT/DE). Ein Punkt gilt als Tausenderpunkt –
-  // außer er steht ohne Komma vor genau ein bis zwei Schlussziffern ("12.34"): so
-  // gruppiert niemand, das ist ein eingefügter englischer Dezimalpunkt.
+  // Zwei getrennte Zuständigkeiten, und das muss so bleiben:
+  //   splitAmount()     liest den **eigenen** Feldinhalt, also das, was die Maske selbst
+  //                     erzeugt hat. Der Punkt ist dort **immer** Tausenderpunkt.
+  //   parseAmountText() liest **fremden** Text (eingefügt) und normalisiert ihn – nur
+  //                     hier darf ein Punkt ein Dezimalpunkt sein.
+  // Beides zusammenzulegen war schon einmal falsch: dann wird "55.000" nach einem
+  // Backspace zu "55.00", der Parser liest 55,00 und aus 55.000 € werden 55 €.
+  const CANON_AMOUNT = /^-?(?:\d{1,3}(?:\.\d{3})*|\d{1,9})(?:,\d{0,2})?$/;
+  const isCanonAmount = s => { const t = String(s == null ? "" : s).trim();
+                               return t === "" || CANON_AMOUNT.test(t); };
+
   function splitAmount(s){
     const t = String(s == null ? "" : s).trim();
     const neg = /^-/.test(t);
     const body = t.replace(/^[-+]\s*/, "");
-    let intPart = body, fracPart = null;
     const comma = body.indexOf(",");
-    if(comma >= 0){
-      intPart = body.slice(0, comma);
-      fracPart = digitsOf(body.slice(comma+1)).slice(0,2);
-    } else {
-      const m = /^([\d.]*?)\.(\d{1,2})$/.exec(body);
-      if(m && digitsOf(m[1]) !== ""){ intPart = m[1]; fracPart = m[2]; }
-    }
-    return {neg, int: digitsOf(intPart).slice(0,9), frac: fracPart};
+    return {neg,
+            int:  digitsOf(comma < 0 ? body : body.slice(0, comma)).slice(0,9),
+            frac: comma < 0 ? null : digitsOf(body.slice(comma+1)).slice(0,2)};
   }
   function joinAmount(p){
     if(!p.int && !p.frac && p.frac !== "") return p.neg ? "-" : "";
     return (p.neg ? "-" : "") + groupDigits(p.int) + (p.frac === null ? "" : "," + p.frac);
   }
+
+  // Eingefügter Text: entweder ein vollständig erkanntes Format oder nichts. Halb
+  // verstandene Eingaben werden nicht zurechtgebogen – aus "12abc34" wird kein
+  // 1.234 €. Rückgabe: kanonischer Feldinhalt, oder null für "nicht lesbar".
+  function parseAmountText(text){
+    const t = String(text == null ? "" : text)
+      .replace(/[\u2212\u2012\u2013\u2014\u2015\u2043]/g, "-")   // typografische Minuszeichen
+      .replace(/[\s\u00A0\u202F]/g, "")                            // auch schmale/geschützte Leerzeichen
+      .replace(/^(?:EUR|€)/i, "").replace(/(?:EUR|€)$/i, "");
+    if(t === "") return "";
+    const neg = /^-/.test(t);
+    const body = t.replace(/^[-+]/, "");
+    let m, int, frac = null;
+    if     ((m = /^(\d{1,3}(?:\.\d{3})+|\d+),(\d{1,2})$/.exec(body))) { int = m[1]; frac = m[2]; }  // 1.234,56
+    else if((m = /^(\d{1,3}(?:\.\d{3})+|\d+)$/.exec(body)))            { int = m[1]; }              // 1.234 | 1234
+    else if((m = /^(\d+)\.(\d{1,2})$/.exec(body)))                      { int = m[1]; frac = m[2]; }  // 1234.56 (englisch)
+    else return null;   // "1,234" bleibt draußen: englischer Tausender oder drei Nachkommastellen?
+    return joinAmount({neg, int: digitsOf(int).slice(0,9).replace(/^0+(?=\d)/, ""), frac});
+  }
+
   // Der Zahlenwert des Feldes – mit Cent und mit Vorzeichen. Negatives bleibt negativ,
   // damit es weiter oben als Fehler auffallen kann statt hier zu verschwinden.
   function amountVal(s){
@@ -397,13 +418,24 @@
     const v = +((p.int || "0") + "." + (p.frac || "0"));
     return p.neg ? -v : v;
   }
-  const amountBad = s => hasDigits(s) && amountVal(s) < 0;
+  // Unverwertbar ist beides: was die Maske nie erzeugt hätte (stehen gelassener,
+  // nicht erkannter Text) und ein negativer Betrag. Beides darf keinen Deckel und
+  // keine abschließende Empfehlung ergeben.
+  const amountUnreadable = s => !isCanonAmount(s);
+  const amountBad = s => amountUnreadable(s) || (hasDigits(s) && amountVal(s) < 0);
+
   // Für Link und Speicher: Punkt als Dezimaltrennzeichen, keine Gruppierung.
   function amountToLink(s){
     const p = splitAmount(s);
     return (p.neg ? "-" : "") + (p.int || "0") + (p.frac ? "." + p.frac : "");
   }
-  const amountFromLink = s => joinAmount(splitAmount(s));
+  // Ein Link ist Fremdeingabe: genau dieses eine Format, sonst leer. Ziffern
+  // herauszuklauben hieße, aus "a=abc12" einen Betrag zu erfinden.
+  function amountFromLink(s){
+    const m = /^(-?)(\d{0,9})(?:\.(\d{1,2}))?$/.exec(String(s == null ? "" : s).trim());
+    if(!m) return "";
+    return joinAmount({neg: m[1] === "-", int: m[2].replace(/^0+(?=\d)/, ""), frac: m[3] || null});
+  }
 
   function setCaretAfterDigits(el, text, n){
     let seen = 0, i = 0;
@@ -424,17 +456,45 @@
   // Dafür type=text statt type=number – in einem Zahlenfeld wäre "55.000" ein
   // ungültiger Wert und .value käme leer zurück. inputmode=numeric hält den
   // Ziffernblock auf iOS; das Komma tippt dort niemand, eingefügt wird es trotzdem.
-  // Backspace auf einem Tausenderpunkt nimmt – wie im Datumsfeld – die Ziffer davor
-  // mit. Auf dem Komma nicht: dort ist das Löschen für sich genommen schon wirksam,
-  // die Nachkommastellen rücken in den Euro-Teil ("12,34" → "1.234").
-  function maskAmount(el, prevValue, isBackspace){
-    const pos = el.selectionStart == null ? el.value.length : el.selectionStart;
-    const p = splitAmount(el.value);
+  //
+  // Zwei Wege, und sie dürfen sich nicht vermischen:
+  //   Eingefügtes wird als Ganzes geparst (parseAmountText). Was dabei nicht erkannt
+  //   wird, bleibt **unverändert stehen** und gilt als unverwertbar – lieber sichtbar
+  //   falsch als still zu einem anderen gültigen Betrag geglättet.
+  //   Getipptes und Gelöschtes wird gefaltet: Ziffern, höchstens ein Komma, Punkte
+  //   sind reine Gruppierung. Backspace auf einem Tausenderpunkt nimmt die Ziffer
+  //   davor mit, Entf die dahinter – sonst setzt die Maske das Trennzeichen sofort
+  //   wieder und der Tastendruck bleibt wirkungslos. Auf dem Komma nicht: dort ist das
+  //   Löschen schon für sich wirksam, die Nachkommastellen rücken in den Euro-Teil
+  //   ("12,34" → "1.234").
+  function maskAmount(el, prevValue, inputType){
+    const raw = el.value;
+    // Ein Zeichen außerhalb des eigenen Alphabets kann nicht getippt worden sein –
+    // das ist der Notnagel für Browser, die keinen inputType liefern.
+    const bulk = inputType === "insertFromPaste" || inputType === "insertFromDrop"
+              || /[^\d.,-]/.test(raw)
+              || digitsOf(raw).length > digitsOf(prevValue).length + 1;
+    if(bulk){
+      const canon = parseAmountText(raw);
+      if(canon === null) return;                       // nicht lesbar: stehen lassen
+      if(canon === el.value) return;
+      el.value = canon;
+      try { el.setSelectionRange(canon.length, canon.length); } catch(e){}
+      return;
+    }
+    // Steht schon Unlesbares im Feld, wird es beim Weitertippen nicht nachträglich
+    // zu einer Zahl geglättet – sonst käme die stille Umdeutung durch die Hintertür.
+    if(!isCanonAmount(prevValue)) return;
+
+    const pos = el.selectionStart == null ? raw.length : el.selectionStart;
+    const p = splitAmount(raw);
     let int = p.int, frac = p.frac;
-    let before = Math.min(digitsOf(el.value.slice(0,pos)).length, int.length + (frac ? frac.length : 0));
-    if(deletedChar(prevValue, el, pos, isBackspace) === "." && before > 0 && before <= int.length){
-      int = int.slice(0, before-1) + int.slice(before);
-      before--;
+    let before = Math.min(digitsOf(raw.slice(0,pos)).length, int.length + (frac ? frac.length : 0));
+    const back = inputType === "deleteContentBackward";
+    const fwd  = inputType === "deleteContentForward";
+    if(deletedChar(prevValue, el, pos, back || fwd) === "."){
+      if(back && before > 0 && before <= int.length){ int = int.slice(0, before-1) + int.slice(before); before--; }
+      else if(fwd && before < int.length)           { int = int.slice(0, before)   + int.slice(before+1); }
     }
     const lead = (int.match(/^0+(?=\d)/) || [""])[0].length;   // "055000" gruppiert sonst als "055.000"
     if(lead){ int = int.slice(lead); before = Math.max(0, before - lead); }
@@ -681,6 +741,7 @@
   // Aufnahmefähigkeit in Cent. Negatives ist keine Aufnahmefähigkeit von null, sondern
   // eine ungültige Eingabe – die fängt dataIssues() ab, hier zählt sie nicht mit.
   function ceilingCents(rawVal){
+    if(amountBad(rawVal)) return 0;
     const v = amountVal(rawVal);
     if(!(v > 0)) return 0;
     return Math.round((inputMode==="tax" ? v : tarifsteuer(v)) * 100);
@@ -773,7 +834,8 @@
     const nA = $("nameA").value || "Elternteil A", nB = $("nameB").value || "Elternteil B";
     [[nA,"valA"],[nB,"valB"]].forEach(([nm,id])=>{
       const raw = $(id).value;
-      if(amountBad(raw))        out.push(`${nm}: negativer Betrag – daraus lässt sich keine Tarifsteuer bestimmen.`);
+      if(amountUnreadable(raw)) out.push(`${nm}: Betrag nicht lesbar – als Zahl eingeben, z. B. 55.000 oder 1.234,56.`);
+      else if(amountBad(raw))   out.push(`${nm}: negativer Betrag – daraus lässt sich keine Tarifsteuer bestimmen.`);
       else if(!hasDigits(raw))  out.push(`${nm}: kein Betrag eingetragen – „leer" ist nicht dasselbe wie 0 €.`);
     });
     if(childMode === "birth"){
@@ -1087,8 +1149,13 @@
     put("nb", $("nameB").value.slice(0,MAX_TEXT), DEF.nb);
     // Cent kommen als Punkt mit ("1234.56"), die Gruppierung bleibt draußen – im Link
     // steht der Wert, nicht seine Schreibweise.
-    if(hasDigits($("valA").value)) p.set("a", amountToLink($("valA").value));
-    if(hasDigits($("valB").value)) p.set("b", amountToLink($("valB").value));
+    // Unverwertbares kommt nicht in den Link: ein Empfänger sähe sonst eine Zahl, die
+    // hier gar keine ist. Der Fehler steht im Ergebnis, nicht in der Adresse.
+    const putAmount = (key, id) => {
+      const v = $(id).value;
+      if(hasDigits(v) && !amountBad(v)) p.set(key, amountToLink(v));
+    };
+    putAmount("a", "valA"); putAmount("b", "valB");
     put("k", children.length, DEF.kids);
     // Eine Kind-Spalte kommt nur mit, wenn mindestens ein Kind vom Default abweicht –
     // dann aber vollständig. Lückenhaft ginge nicht: die Zuordnung läuft über die Position.
@@ -1244,7 +1311,7 @@
     let prev = el.value;
     el.addEventListener("beforeinput", ()=>{ prev = el.value; });
     el.addEventListener("input", e=>{
-      maskAmount(el, prev, e.inputType === "deleteContentBackward");
+      maskAmount(el, prev, e.inputType);
       prev = el.value;
       compute();
     });
@@ -1307,7 +1374,8 @@
   if(typeof window !== "undefined" && window.__FB_TEST){
     window.__FB_TEST = {
       tarifsteuer, parseBirth, fmtBirth, childYearAmount, amountFor,
-      splitAmount, joinAmount, amountVal, amountBad, amountToLink, amountFromLink,
+      splitAmount, joinAmount, parseAmountText, amountVal, amountBad, amountUnreadable,
+      isCanonAmount, amountToLink, amountFromLink,
       maskAmount, maskBirth, ceilingCents, evaluate, bestSplit, shareToA,
       ruleForYear, effSplit, firstRestrictedYear, splitHintText, dataIssues,
       buildQuery, applyQuery, compute, renderChildren, refreshLabels, saveNow,

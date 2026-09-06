@@ -67,20 +67,33 @@ UI-Sprache: **Deutsch**. Kein Build-Step, keine Frameworks – gesamter Code in 
     Vorzeichen, Euro und Cent; `amountVal()` liefert daraus den Wert **mit Cent und
     Vorzeichen**. Wer das durch `+digitsOf(s)` ersetzt, macht aus „1.234,56" wieder
     123.456 und aus „-500" 500 – beides stillschweigend und um Größenordnungen daneben.
-    Dezimaltrennzeichen ist das Komma; ein Punkt gilt als Tausenderpunkt, außer er steht
-    ohne Komma vor ein bis zwei Schlussziffern („12.34" = eingefügter englischer
-    Dezimalpunkt, „12.345" = Gruppierung).
+  - **Eigener und fremder Text haben getrennte Parser. Das ist keine Doppelung.**
+    `splitAmount()` liest den **eigenen** Feldinhalt (das, was die Maske erzeugt hat):
+    der Punkt ist dort **immer** Tausenderpunkt. `parseAmountText()` liest **eingefügten**
+    Text, und nur dort darf ein Punkt ein Dezimalpunkt sein („1234.56"). Wer beides
+    zusammenlegt, bekommt sofort die Regression zurück, an der es aufgefallen ist: nach
+    einem Backspace steht „55.000" kurz als „55.00" im Feld – als Dezimalpunkt gelesen
+    werden aus 55.000 € stille 55 €. Getippt bleibt getippt, eingefügt bleibt eingefügt.
+  - **Nicht erkannter Text wird nicht zurechtgebogen.** `parseAmountText()` liefert
+    entweder ein vollständig erkanntes Format oder `null`; im zweiten Fall bleibt der
+    Text **unverändert im Feld** stehen und `amountUnreadable()` meldet ihn. Aus
+    „12abc34" darf kein 1.234 € werden, aus „−500" (U+2212) kein +500 €, und „1,234" ist
+    mehrdeutig (englischer Tausender oder drei Nachkommastellen?) und wird abgelehnt
+    statt geraten. Weitertippen auf Unlesbarem glättet es nicht nachträglich – deshalb
+    prüft `maskAmount()` `isCanonAmount(prevValue)`, bevor es überhaupt faltet.
+    Ein unverwertbarer Betrag ergibt keinen Deckel (`ceilingCents()` gibt 0), keine
+    Empfehlung und steht nicht im Link.
   - Die Einkommensfelder sind deshalb `type="text"` + `inputmode="numeric"`. **Nicht auf
     `type="number"` zurückdrehen**: dort wäre „55.000" ein ungültiger Wert und `.value`
     käme leer zurück. Auf „leer" prüft `hasDigits()` – `+el.value` ist bei „55.000" `NaN`.
   - Beide Masken verankern den Cursor an der Anzahl Ziffern links von ihm. Wer das
     wegoptimiert, bekommt den Sprung ans Feldende zurück.
-  - **Backspace auf einem Trennzeichen nimmt die Ziffer davor mit.** Ohne das ist der
-    Tastendruck wirkungslos – die Maske setzt das Trennzeichen sofort wieder. Welches
-    Zeichen gelöscht wurde, liefert `deletedChar()` aus dem Stand vor dem Tastendruck
-    (beim Datum `children[i].birth`, beim Betrag eine pro Feld über `beforeinput`
-    mitgeführte Variable). Nur der **Punkt** löst das aus: beim Komma ist das Löschen
-    schon für sich wirksam, die Nachkommastellen rücken in den Euro-Teil.
+  - **Backspace auf einem Trennzeichen nimmt die Ziffer davor mit, Entf die dahinter.**
+    Ohne das ist der Tastendruck wirkungslos – die Maske setzt das Trennzeichen sofort
+    wieder. Welches Zeichen gelöscht wurde, liefert `deletedChar()` aus dem Stand vor dem
+    Tastendruck (beim Datum `children[i].birth`, beim Betrag eine pro Feld über
+    `beforeinput` mitgeführte Variable). Nur der **Punkt** löst das aus: beim Komma ist
+    das Löschen schon für sich wirksam, die Nachkommastellen rücken in den Euro-Teil.
   - Der Datumspunkt steht **nur zwischen Gruppen, nie am Ende**. Ein angehängter Punkt
     („27.") käme nach jedem Backspace sofort zurück – das Feld wäre nicht mehr leerbar.
   - **Am Stück eingefügte Datumswerte werden vor dem Falten geparst** („1.1.2020" hat nur
@@ -231,7 +244,7 @@ mit eigener Recherche – nicht einen Nebeneffekt.
 
 ## Testen
 
-**Erst `node tests/run.mjs`** (145 Prüfungen, keine Abhängigkeiten, läuft auch in CI).
+**Erst `node tests/run.mjs`** (194 Prüfungen, keine Abhängigkeiten, läuft auch in CI).
 Wer Rechen- oder Zustandslogik anfasst, ergänzt den Fall dort – die Tests sind der Grund,
 warum ein zweites Review nicht dieselben Fehler wiederfindet.
 `tests/dom.mjs` schneidet das `<script>` aus `index.html` und führt es in einer
@@ -244,6 +257,10 @@ Danach `index.html` im Browser öffnen (das können die Tests nicht):
 - Einkommen B=8.000 (< Steuergrenze) → Ceiling B = 0, Bonus muss auf A wandern.
 - `1.234,56` eintippen → im Feld steht `1.234,56`, nicht `123.456`. `-500` einfügen →
   Ceiling zeigt „–" und „Betrag nicht verwertbar", das Ergebnis ist vorläufig.
+- `55000` tippen, Cursor ans Feldende, **einmal Backspace** → `5.500`, nicht `55,00`.
+  Dasselbe mit `1234` → `123` und `12345` → `1.234`.
+- `1234.56 €` einfügen → `1.234,56`. `12abc34` einfügen → bleibt stehen, „Betrag nicht
+  lesbar", kein Deckel, keine Empfehlung, nichts davon im Link.
 - Modus „ab 2027" → keine 100/0-Szenarien mehr, nur 25:75 / 50:50; im Ergebnis steht
   „Simulation, keine Veranlagung 2027".
 - Jahr umschalten bei A=55.000 → 13.903,70 (2024) / 13.593,10 (2025) / 13.447,20 (2026).
